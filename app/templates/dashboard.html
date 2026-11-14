@@ -31,7 +31,10 @@ button, input, select { font: inherit; color: inherit; }
     radial-gradient(700px 500px at 0% 100%, rgba(232, 194, 106, .08), transparent 60%),
     linear-gradient(180deg, rgba(2, 6, 4, .82) 0%, rgba(2, 10, 6, .9) 45%, rgba(2, 6, 4, .96) 100%); }
 
-.app { max-width: 1880px; margin: 0 auto; padding: 22px 34px 22px; display: grid; gap: 18px; }
+/* Designed at 1920x1080; scaled to fit any window (laptop or projector) by fit() below. */
+html, body { overflow: hidden; }
+.app { width: 1920px; height: 1080px; padding: 22px 34px 22px; display: grid; gap: 18px; align-content: start;
+       position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%) scale(var(--fit, 1)); transform-origin: center; }
 .card { background: var(--card); border: 1px solid var(--stroke); border-radius: var(--r-xl); padding: 22px 26px; backdrop-filter: blur(10px); min-width: 0; }
 .ctitle { display: flex; align-items: center; gap: 10px; font-size: 21px; font-weight: 400; margin: 0 0 14px; min-height: 40px; }
 .ctitle .sub { margin-left: auto; color: var(--muted); font-size: 13px; }
@@ -246,6 +249,8 @@ const secs = (ms) => ms == null ? '—' : (ms / 1000).toFixed(ms < 10000 ? 1 : 0
 const dubai = (iso, sec) => iso ? new Date(iso).toLocaleTimeString('en-GB', { timeZone: 'Asia/Dubai', hour: '2-digit', minute: '2-digit', ...(sec ? { second: '2-digit' } : {}) }) : '';
 const ago = (iso) => { const s = Math.max(0, (Date.now() - new Date(iso)) / 1000); return s < 60 ? 'just now' : s < 3600 ? `${Math.floor(s / 60)} min ago` : `${Math.floor(s / 3600)} h ago`; };
 const parse = (d) => { if (typeof d !== 'string') return d || {}; try { return JSON.parse(d); } catch { return { text: d }; } };
+function fit() { document.documentElement.style.setProperty('--fit', Math.min(innerWidth / 1920, innerHeight / 1080)); }
+addEventListener('resize', fit); fit();
 setInterval(() => $('clock').textContent = new Date().toLocaleTimeString('en-GB', { timeZone: 'Asia/Dubai', hour: '2-digit', minute: '2-digit' }), 1000);
 
 /* clean a caption into a short human label: drop pasted headings, hashtags, keep first meaningful line */
