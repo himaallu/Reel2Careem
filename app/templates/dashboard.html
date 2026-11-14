@@ -119,8 +119,13 @@ nav a.on { background: var(--card2); color: var(--ink); box-shadow: inset 0 0 0 
 .filters select { height: 40px; border-radius: 999px; border: 1px solid var(--stroke); background: rgba(255,255,255,.04); padding: 0 14px; font-size: 14px; }
 .filters select option { background: var(--surface); }
 .wishes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
-.wish { border-radius: var(--r-lg); background: rgba(255,255,255,.035); border: 1px solid var(--stroke); padding: 16px; display: flex; flex-direction: column; gap: 10px; height: 232px; animation: rise .5s ease-out; }
-.wish.new { box-shadow: 0 0 0 1px var(--careem), 0 0 24px rgba(60,227,106,.25); }
+.wish { border-radius: var(--r-lg); background: rgba(255,255,255,.035); border: 1px solid var(--stroke); padding: 16px; display: flex; flex-direction: column; gap: 10px; height: 232px; }
+.wish.new { box-shadow: 0 0 0 1px var(--careem), 0 0 24px rgba(60,227,106,.25); animation: rise .5s ease-out; }
+.polltag { display: inline-flex; align-items: center; gap: 8px; height: 30px; padding: 0 12px; border-radius: 999px; font-size: 12.5px; color: var(--ink2);
+           background: rgba(60,227,106,.08); box-shadow: inset 0 0 0 1px var(--stroke); }
+.polltag i { width: 8px; height: 8px; border-radius: 50%; background: var(--careem); opacity: .45; transition: opacity .25s, box-shadow .25s; }
+.polltag.tick i { opacity: 1; box-shadow: 0 0 0 4px rgba(60,227,106,.18), 0 0 10px var(--careem); }
+.polltag.bad i { background: var(--bad); opacity: 1; }
 @keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 .wish .top { display: flex; align-items: flex-start; gap: 8px; }
 .tag { padding: 8px 14px; border-radius: 999px; font-size: 13px; font-weight: 600; white-space: nowrap; }
@@ -217,7 +222,7 @@ nav a.on { background: var(--card2); color: var(--ink); box-shadow: inset 0 0 0 
   <!-- ============================================================ BOTTOM -->
   <section class="bot">
     <div class="card" id="wishes">
-      <div class="ctitle">Live wishes
+      <div class="ctitle">Live wishes <span class="polltag" id="pollTag" title="The dashboard checks for new wishes every 4 seconds"><i></i><span>Polling</span></span>
         <div class="filters">
           <select id="fStage"><option value="all">All</option><option value="dm">DM sent</option><option value="opened">Link opened</option><option value="ordered">Ordered</option><option value="not found">Not on Careem</option></select>
         </div>
@@ -372,10 +377,16 @@ function story(r) {
   const after = r.stage === 'ordered' ? ` <span class="dim">→ ordered${r.aed ? ' · AED ' + esc(aed(r.aed)) : ''}.</span>` : r.stage === 'opened' ? ' <span class="dim">→ opened the order link.</span>' : '';
   return `<div>${ask}</div><div>${ans}${after}</div>`;
 }
-let seenIds = null;
+let seenIds = null, feedSig = '';
 function renderFeed(rows) {
   const f = $('fStage').value;
   const list = rows.filter(r => f === 'all' || r.stage === f).slice(0, 3);
+  const sig = f + '|' + list.map(r => [r.id, r.stage, r.status, r.item, r.username, r.aed].join('~')).join('|') + '|' + rows.length;
+  if (sig === feedSig) {   // nothing changed: just refresh the "x min ago" labels, don't rebuild (no jumping)
+    document.querySelectorAll('#feed .ago').forEach(el => el.textContent = ago(el.dataset.ts));
+    return;
+  }
+  feedSig = sig;
   if (!list.length) { $('feed').innerHTML = `<div class="waiting">${rows.length ? 'No wishes match this filter.' : 'Waiting for the first wish… comment “price?” on a Genie post or share a reel 🪔'}</div>`; return; }
   const fresh = seenIds ? new Set(rows.filter(r => !seenIds.has(r.id)).map(r => r.id)) : new Set();
   seenIds = new Set(rows.map(r => r.id));
@@ -384,14 +395,14 @@ function renderFeed(rows) {
     const name = handle(r).slice(1);
     return `<div class="wish${fresh.has(r.id) ? ' new' : ''}">
       <div class="top"><span class="tag ${cls}">${label}</span>
-        <div class="when">${ago(r.received_at)}<br>${r.mode ? `<span class="m" style="background:${MODE_COLOR[r.mode] || S[3]}">${esc(r.mode.toUpperCase())}</span>` : ''}</div></div>
+        <div class="when"><span class="ago" data-ts="${esc(r.received_at)}">${ago(r.received_at)}</span><br>${r.mode ? `<span class="m" style="background:${MODE_COLOR[r.mode] || S[3]}">${esc(r.mode.toUpperCase())}</span>` : ''}</div></div>
       <div class="story">${story(r)}</div>
       <div class="who"><span class="ava" style="background:${avaColor(name)}">${esc(name[0] || '?').toUpperCase()}</span>
         <div><b>${esc(handle(r))}</b><small>${r.kind === 'comment' ? 'commented on a post' : 'shared a reel in DM'}${r.simulated ? ' · simulated' : ''}</small></div></div>
     </div>`;
   }).join('');
 }
-$('fStage').onchange = () => data && renderFeed(data.feed || []);
+$('fStage').onchange = () => { feedSig = ''; data && renderFeed(data.feed || []); };
 
 const SIDE = { l: 'left', r: 'right', t: 'top', b: 'bottom' };
 /* Signals to monetize: buyers split by how far they got. Ordered = money made; the rest = open opportunities. */
@@ -468,7 +479,12 @@ async function refresh() {
     data = await (await fetch('/api/metrics')).json();
     renderStatus(data.health, data.mode, data.demo_rows); renderHero(data.kpis, data.timeline); renderSummary(data);
     renderActivity(data.timeline); renderHighlight(data); renderFeed(data.feed || []); renderMonetize(data);
-  } catch (e) { console.warn('refresh failed', e); } finally { busy = false; }
+    pollTick(true);
+  } catch (e) { console.warn('refresh failed', e); pollTick(false); } finally { busy = false; }
+}
+function pollTick(ok) {
+  const t = $('pollTag'); t.classList.toggle('bad', !ok); t.querySelector('span').textContent = ok ? 'Polling' : 'Reconnecting…';
+  t.classList.add('tick'); setTimeout(() => t.classList.remove('tick'), 450);
 }
 const soon = () => { clearTimeout(refreshTimer); refreshTimer = setTimeout(refresh, 500); };
 setInterval(refresh, 4000);
