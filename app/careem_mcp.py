@@ -97,10 +97,15 @@ class CareemMCP:
 
     # ------------------------------------------------------------ public sync API
     def call(self, name: str, args: Optional[dict[str, Any]] = None, *,
-             signal_id: Optional[str] = None, timeout: float = READ_TIMEOUT_S) -> dict[str, Any]:
-        """Run a READ_ONLY tool. Returns the tool's output object (may contain an "error" field)."""
+             signal_id: Optional[str] = None, timeout: float = READ_TIMEOUT_S,
+             retries: int = READ_RETRIES) -> dict[str, Any]:
+        """Run a READ_ONLY tool. Returns the tool's output object (may contain an "error" field).
+
+        `timeout` is per attempt; `retries` (≤ READ_RETRIES) lets time-boxed callers like the agent use fewer.
+        """
         self._check_allowed(name, code=False)
-        return self._run(name, args, signal_id=signal_id, timeout=timeout, retries=READ_RETRIES)
+        return self._run(name, args, signal_id=signal_id, timeout=timeout,
+                         retries=max(0, min(retries, READ_RETRIES)))
 
     def cart_call(self, name: str, args: Optional[dict[str, Any]] = None, *,
                   signal_id: Optional[str] = None, timeout: float = READ_TIMEOUT_S) -> dict[str, Any]:
@@ -198,7 +203,8 @@ class CareemMCP:
                 if attempt >= retries:
                     raise
                 attempt += 1
-                log.warning("%s failed (%s); retry %d/%d", name, type(e).__name__, attempt, retries)
+                log.warning("%s failed (%s: %s); retry %d/%d", name, type(e).__name__, str(e)[:160],
+                            attempt, retries)
                 self._reset()
 
     def _submit(self, coro: Any, timeout: float) -> Any:

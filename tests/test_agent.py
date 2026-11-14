@@ -142,6 +142,28 @@ def main() -> int:
                                    {"name": "Falafel Plate", "id": 700102, "price_aed": 0}),
           "price 0 (discount field) does not ground a price")
 
+    # 2d. same-restaurant alternative dropped
+    fake = FakeBedrock([tool_msg(("food_get_restaurant_menu", {"restaurant_id": 30101})), tool_msg((agent.SUBMIT, {
+        "status": "found", "wanted": "falafel", "service": "food", "confidence": 0.8,
+        "merchant": {"name": "Shawarma Station", "id": 30101},
+        "item": {"name": "Falafel Plate", "id": 700102, "price_aed": 22},
+        "alternatives": [{"merchant": {"name": "Shawarma Station", "id": 30101},
+                          "item": {"name": "Mixed Grill Platter", "id": 700103}, "price_aed": 65}]}))])
+    r = agent.run_agent(sig(), mcp=mcp, client=fake)
+    check(r.alternatives == [] and any("same-restaurant" in x for x in r.steps), "same-restaurant alternative dropped")
+
+    # 2e. agent tool calls are time-boxed: a hanging tool can't eat the budget
+    class SlowMCP:
+        target = "sandbox"
+        def __init__(self): self.calls = []
+        def call(self, name, args, *, signal_id=None, timeout=10, retries=2):  # noqa: ANN001
+            self.calls.append((timeout, retries)); raise careem_mcp.CareemTimeout("slow")
+    slow = SlowMCP()
+    agent._run_tools([{"toolUseId": "a", "name": "food_dish_search", "input": {}}], sig(), slow,
+                     agent.Evidence(), time.monotonic() + 8)
+    t_, r_ = slow.calls[0]
+    check(t_ <= 4.1 and r_ == 0, f"8 s left -> per-attempt timeout {t_:.1f}s, retries {r_} (fits before the model's turn)")
+
     # 3. hallucinated main dish -> AgentError (fallback takes over)
     fake = FakeBedrock([tool_msg(("food_dish_search", {"query": "pizza"})), tool_msg((agent.SUBMIT, {
         "status": "found", "wanted": "pizza", "service": "food", "confidence": 0.9,
@@ -162,6 +184,32 @@ def main() -> int:
     ])
     r = agent.run_agent(sig(text="lol nice", caption="sunset"), mcp=mcp, client=fake)
     check(r.status == "not_buying" and len(fake.requests) == 2, "missing submit -> nudge -> parsed")
+
+    # 4b. "none" without any successful search is rejected (no fake missed demand)
+    fake = FakeBedrock([tool_msg(("food_dish_search", {"query": "trigger_upstream_down"})), tool_msg((agent.SUBMIT, {
+        "status": "none", "wanted": "x", "service": "food", "confidence": 0.1, "missed_demand": "x"}))])
+    try:
+        agent.run_agent(sig(), mcp=mcp, client=fake)
+        check(False, "'none' with no successful search rejected")
+    except agent.AgentError as e:
+        check("no Careem search succeeded" in str(e), "'none' with no successful search rejected")
+    fake = FakeBedrock([tool_msg(("food_dish_search", {"query": "xyz"})), tool_msg((agent.SUBMIT, {
+        "status": "none", "wanted": "xyz", "service": "food", "confidence": 0.7}))])
+    r = agent.run_agent(sig(caption="xyz"), mcp=mcp, client=fake)
+    check(r.status == "none" and r.missed_demand == "xyz", "'none' after a real empty search is accepted")
+
+    # 4c. production without DEMO_LAT/LNG fails fast, before any model call
+    prod = careem_mcp.CareemMCP("production")
+    saved = {k: os.environ.pop(k, None) for k in ("DEMO_LAT", "DEMO_LNG")}
+    fake = FakeBedrock([])
+    try:
+        agent.run_agent(sig(), mcp=prod, client=fake)
+        check(False, "production without location fails fast")
+    except agent.AgentError as e:
+        check("DEMO_LAT" in str(e) and not fake.requests, "production without location fails fast (0 model calls)")
+    for k, v in saved.items():
+        if v is not None:
+            os.environ[k] = v
 
     # 5. budget: slow model -> AgentError within ~budget
     os.environ["AGENT_BUDGET_S"] = "2"
