@@ -125,8 +125,9 @@ def classify(signal: Signal, *, client: Any = None) -> IntentResult:
         _emit(signal.id, r)
         return r
 
-    if signal.kind == "dm_share":
+    if signal.kind == "dm_share" and (signal.media_id or signal.media_url or signal.caption):
         return done(True, "shared a post with Genie", "dm_share")
+    # a plain text DM ("thank you", "hi") is judged like a comment
     kw = keyword_intent(signal.text)
     if kw is not None:
         return done(kw[0], kw[1], "keyword")

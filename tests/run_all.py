@@ -9,7 +9,7 @@ import sys
 import urllib.request
 
 SUITES = ["sandbox.test_acceptance", "tests.test_agent", "tests.test_fallbacks", "tests.test_snapshot",
-          "tests.test_orders", "tests.test_intent"]
+          "tests.test_orders", "tests.test_intent", "tests.test_consistency"]
 
 
 def sandbox_up() -> bool:

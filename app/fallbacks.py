@@ -106,20 +106,44 @@ def extract_dish(signal: Signal) -> Optional[str]:
     return " ".join(words[:3]) or None
 
 
-def extract_restaurant(signal: Signal) -> Optional[str]:
+_HANDLE_SUFFIX = re.compile(r"[._-]?(mena|uae|dxb|dubai|ae|me|ksa|official|eats|food|kitchen|hq)$", re.I)
+
+
+def _clean_handle(h: str) -> str:
+    h = h.lstrip("@").strip(".")
+    for _ in range(2):
+        h = _HANDLE_SUFFIX.sub("", h)
+    return re.sub(r"[._]+", " ", h).strip()
+
+
+def restaurant_candidates(signal: Signal) -> list[str]:
+    """Every restaurant hint in the post, best first: tagged restaurant, 📍 line, 'at X', @handles."""
+    cands: list[str] = []
     if signal.restaurant:
-        return signal.restaurant.lstrip("@").replace("_", " ").replace(".", " ").strip()
+        cands.append(_clean_handle(signal.restaurant) if signal.restaurant.startswith("@") else signal.restaurant.strip())
     cap = signal.caption or ""
-    m = re.search(r"📍\s*([^\n,]+?)(?:\s+-\s+|,|\n|$)", cap)   # "📍 Thailand XOCO BAR - Thailand Pavilion"
-    if m and len(m.group(1).strip()) >= 3:
-        return m.group(1).strip()
+    for m in re.finditer(r"📍\s*([^\n,]+?)(?:\s+[-–—]\s+|,|\n|$)", cap):   # "📍 Thailand XOCO BAR - Thailand Pavilion"
+        if len(m.group(1).strip()) >= 3:
+            cands.append(m.group(1).strip())
     m = re.search(r"\bat\s+((?:[A-Z0-9][\w'&-]*\s?){1,4})", cap)
     if m:
-        return m.group(1).strip()
-    m = re.search(r"@([\w.]{3,})", cap)
-    if m:
-        return m.group(1).replace("_", " ").replace(".", " ").strip()
-    return None
+        cands.append(m.group(1).strip())
+    for h in re.findall(r"@([\w.]{3,})", cap):
+        c = _clean_handle(h)
+        if len(c) >= 3:
+            cands.append(c)
+    seen: set[str] = set()
+    return [c for c in cands if not (c.lower() in seen or seen.add(c.lower()))][:4]
+
+
+def extract_restaurant(signal: Signal) -> Optional[str]:
+    c = restaurant_candidates(signal)
+    return c[0] if c else None
+
+
+def caption_words(signal: Signal) -> set[str]:
+    text = re.sub(r"@\S+|#\S+|https?://\S+", " ", f"{signal.caption or ''} {signal.text or ''}")
+    return {w for w in _words(text) if len(w) > 2}
 
 
 # ================================================================ RULES
@@ -128,10 +152,10 @@ def rule_resolve(signal: Signal) -> AgentResult:
 
     mcp = careem_mcp.get()
     dish = extract_dish(signal)
-    if not dish:
-        raise FallbackMiss("no dish keyword in the post")
-    rest_q = extract_restaurant(signal)
-    steps = [f"rules: dish={dish!r} restaurant={rest_q!r} (data: {mcp.target})"]
+    cands = restaurant_candidates(signal)
+    if not dish and not cands:
+        raise FallbackMiss("no dish keyword or restaurant in the post")
+    steps = [f"rules: dish={dish!r} restaurants={cands} (data: {mcp.target})"]
 
     def call(name: str, args: dict[str, Any]) -> dict[str, Any]:
         out = mcp.call(name, args, signal_id=signal.id, timeout=RULES_CALL_TIMEOUT_S, retries=1)
@@ -140,15 +164,30 @@ def rule_resolve(signal: Signal) -> AgentResult:
             raise FallbackMiss(f"{name}: {str(out['error'])[:120]}")
         return out
 
+    # 1. The restaurant the post names wins: stay there, even if only a close dish exists.
     main: Optional[tuple[dict, dict]] = None
-    if rest_q:
-        rests = _restaurants(call("food_merchant_search", {"query": rest_q}))
-        rest = next((r for r in rests if _overlap(r["name"], rest_q)), None)
-        if rest:
-            dishes = _dishes(call("food_search_restaurant_items", {"restaurant_id": _int(rest["id"]), "query": dish}))
-            best = _best_item(dishes, dish)
+    named_rest: Optional[dict] = None
+    for cand in cands:
+        rests = _restaurants(call("food_merchant_search", {"query": cand}))
+        named_rest = next((r for r in rests if _overlap(r["name"], cand)), None)
+        if named_rest:
+            break
+    if named_rest:
+        rid = _int(named_rest["id"])
+        if dish:
+            best = _best_item(_dishes(call("food_search_restaurant_items", {"restaurant_id": rid, "query": dish})), dish)
             if best:
-                main = (rest, best)
+                main = (named_rest, best)
+        if main is None:   # no keyword hit: pick the menu item sharing most words with the caption
+            menu_items = _menu_items(call("food_get_restaurant_menu", {"restaurant_id": rid}))
+            words = caption_words(signal)
+            scored = sorted(menu_items, key=lambda i: (len(words & _words(i["name"])), -i["price"]), reverse=True)
+            if scored:
+                main = (named_rest, scored[0])
+                steps.append(f"closest dish on {named_rest['name']}'s menu: {scored[0]['name']}")
+    if not dish:
+        dish = (main[1]["name"] if main else None) or (cands[0] if cands else "")
+    by_dish = _restaurants(call("food_dish_search", {"query": dish})) if dish else []
     by_dish = _restaurants(call("food_dish_search", {"query": dish}))
     if main is None:
         for r in by_dish:
@@ -170,7 +209,7 @@ def rule_resolve(signal: Signal) -> AgentResult:
                                     Item(best["name"], best["id"], best["price"], r["eta"]), best["price"], r["eta"]))
         if len(alts) == 3:
             break
-    exact = all(w in it["name"].lower() for w in dish.split())
+    exact = bool(dish) and all(w in it["name"].lower() for w in dish.split())
     return AgentResult(
         status="found" if exact else "closest", mode="rules", wanted=dish, service="food",
         merchant=Merchant(rest["name"], rest["id"], rest.get("area")),
@@ -220,6 +259,25 @@ def _restaurants(out: dict[str, Any]) -> list[dict[str, Any]]:
                     "eta": int(eta) if isinstance(eta, (int, float)) else None,
                     "items": [i for i in (_item(x) for x in r.get("items") or [] if isinstance(x, dict)) if i]})
     return res
+
+
+def _menu_items(out: dict[str, Any]) -> list[dict[str, Any]]:
+    """Every orderable item in a food_get_restaurant_menu answer (menu.groups[].items[])."""
+    found: list[dict[str, Any]] = []
+
+    def walk(v: Any) -> None:
+        if isinstance(v, dict):
+            it = _item(v) if ("item" in v or "name" in v) and "price" in v else None
+            if it:
+                found.append(it)
+                return
+            for x in v.values():
+                walk(x)
+        elif isinstance(v, list):
+            for x in v:
+                walk(x)
+    walk((out.get("restaurant") or {}).get("menu") or out.get("menu") or {})
+    return found
 
 
 def _dishes(out: dict[str, Any]) -> list[dict[str, Any]]:
@@ -290,10 +348,9 @@ def scripted_resolve(signal: Signal) -> AgentResult:
 
 
 def _last_resort(signal: Signal, why: str) -> AgentResult:
-    from app.agent import fake_resolve
-
-    res = fake_resolve(signal)
-    res.steps = [f"last resort: built-in scripted answer ({why[:120]})"]
+    """Nothing could answer: say so honestly (no invented dish)."""
+    res = AgentResult(status="none", mode="scripted", wanted=(signal.caption or signal.text or "")[:80],
+                      steps=[f"last resort: nothing could answer ({why[:120]})"])
     _emit(signal.id, "fallback", {"to": "scripted", "reason": why[:300]}, "error")
     return res
 

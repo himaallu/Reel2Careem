@@ -524,11 +524,47 @@ def current_mode() -> str:
     return _mode_override or os.getenv("AGENT_MODE", "live").strip().lower()
 
 
+REUSE_HOURS = float(os.getenv("REUSE_SAME_REEL_HOURS", "6"))
+
+
+def previous_live_answer(signal: Signal) -> Optional[AgentResult]:
+    """Same reel (media_id) already answered LIVE recently -> reuse it, so a reel always gets the same answer.
+
+    Only LIVE found/closest answers are reused (a RULES/CACHED one is retried live). Steps say so.
+    """
+    if not signal.media_id:
+        return None
+    try:
+        from datetime import datetime, timedelta, timezone
+
+        from app import db
+        cutoff = (datetime.now(timezone.utc) - timedelta(hours=REUSE_HOURS)).isoformat(timespec="seconds")
+        with db.connect() as c:
+            rows = c.execute(
+                """SELECT m.result_json, m.created_at FROM matches m JOIN signals s ON s.id = m.signal_id
+                   WHERE s.media_id = ? AND s.id != ? AND m.created_at >= ? ORDER BY m.created_at DESC LIMIT 5""",
+                (signal.media_id, signal.id, cutoff)).fetchall()
+        for r in rows:
+            res = AgentResult.from_dict(json.loads(r["result_json"]))
+            if res.mode == "live" and res.status in ("found", "closest"):
+                res.steps = [f"same reel answered LIVE at {r['created_at']} — reused for a consistent answer"]
+                res.latency_ms = 0
+                return res
+    except Exception as e:  # noqa: BLE001 — reuse is an optimisation; never block a live answer
+        log.warning("reuse lookup failed: %s", e)
+    return None
+
+
 def resolve(signal: Signal) -> AgentResult:
     """Never raises. live → fallback ladder (fallbacks.py, P1-5) → fake_resolve as the last resort."""
     mode = current_mode()
     reason = f"AGENT_MODE={mode}"
     if mode == "live":
+        prev = previous_live_answer(signal)
+        if prev is not None:
+            _emit(signal.id, "agent_step", {"turn": 0, "ms": 0, "stop": "reused",
+                                            "tools": ["same reel answered LIVE before — reusing that answer"]})
+            return prev
         try:
             result = run_agent(signal)
             _after(signal, result)

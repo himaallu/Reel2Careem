@@ -1,38 +1,80 @@
 {
-  "_note": "SCRIPTED fallback answers (badge SCRIPTED). Values copied from a real production run on 2026-11-14 near Careem HQ; prices may have changed since.",
+  "_note": "SCRIPTED fallback answers (badge SCRIPTED). Values copied from a real production run on 2026-11-14 near Careem HQ; prices may have changed since. No 'default' on purpose: a post that matches nothing gets an honest 'not on Careem' reply.",
   "by_media_id": {},
   "by_keyword": {
     "operation falafel": {
-      "status": "found", "wanted": "Chicken shawarma wrap at Operation Falafel", "service": "food",
-      "merchant": {"name": "Operation Falafel", "id": "920207"},
-      "item": {"name": "Crispy Chicken Shawarma", "id": "4085282291", "price_aed": 30, "eta_min": 20,
-               "image_url": "https://careem-catalog-media.media.careem.com/catalogs/5c6cfd423328c980e52d88855bc1a693.jpeg"},
+      "status": "found",
+      "wanted": "Chicken shawarma wrap at Operation Falafel",
+      "service": "food",
+      "merchant": {
+        "name": "Operation Falafel",
+        "id": "920207"
+      },
+      "item": {
+        "name": "Crispy Chicken Shawarma",
+        "id": "4085282291",
+        "price_aed": 30,
+        "eta_min": 20,
+        "image_url": "https://careem-catalog-media.media.careem.com/catalogs/5c6cfd423328c980e52d88855bc1a693.jpeg"
+      },
       "alternatives": [
-        {"merchant": {"name": "Tarator - Arabic Street Food", "id": "1032061"},
-         "item": {"name": "Chicken Shawarma Tortilla Wrap", "id": "4652105597", "price_aed": 26, "eta_min": 40},
-         "price_aed": 26, "eta_min": 40}
+        {
+          "merchant": {
+            "name": "Tarator - Arabic Street Food",
+            "id": "1032061"
+          },
+          "item": {
+            "name": "Chicken Shawarma Tortilla Wrap",
+            "id": "4652105597",
+            "price_aed": 26,
+            "eta_min": 40
+          },
+          "price_aed": 26,
+          "eta_min": 40
+        }
       ],
-      "addon": {"name": "Soft Drinks", "price_aed": 10},
+      "addon": {
+        "name": "Soft Drinks",
+        "price_aed": 10
+      },
       "confidence": 0.8
     },
     "shawarma": {
-      "status": "found", "wanted": "Chicken shawarma", "service": "food",
-      "merchant": {"name": "Operation Falafel", "id": "920207"},
-      "item": {"name": "Crispy Chicken Shawarma", "id": "4085282291", "price_aed": 30, "eta_min": 20,
-               "image_url": "https://careem-catalog-media.media.careem.com/catalogs/5c6cfd423328c980e52d88855bc1a693.jpeg"},
+      "status": "found",
+      "wanted": "Chicken shawarma",
+      "service": "food",
+      "merchant": {
+        "name": "Operation Falafel",
+        "id": "920207"
+      },
+      "item": {
+        "name": "Crispy Chicken Shawarma",
+        "id": "4085282291",
+        "price_aed": 30,
+        "eta_min": 20,
+        "image_url": "https://careem-catalog-media.media.careem.com/catalogs/5c6cfd423328c980e52d88855bc1a693.jpeg"
+      },
       "alternatives": [
-        {"merchant": {"name": "Tarator - Arabic Street Food", "id": "1032061"},
-         "item": {"name": "Chicken Shawarma Tortilla Wrap", "id": "4652105597", "price_aed": 26, "eta_min": 40},
-         "price_aed": 26, "eta_min": 40}
+        {
+          "merchant": {
+            "name": "Tarator - Arabic Street Food",
+            "id": "1032061"
+          },
+          "item": {
+            "name": "Chicken Shawarma Tortilla Wrap",
+            "id": "4652105597",
+            "price_aed": 26,
+            "eta_min": 40
+          },
+          "price_aed": 26,
+          "eta_min": 40
+        }
       ],
-      "addon": {"name": "Soft Drinks", "price_aed": 10},
+      "addon": {
+        "name": "Soft Drinks",
+        "price_aed": 10
+      },
       "confidence": 0.7
     }
-  },
-  "default": {
-    "status": "closest", "wanted": "something tasty", "service": "food",
-    "merchant": {"name": "Operation Falafel", "id": "920207"},
-    "item": {"name": "Crispy Chicken Shawarma", "id": "4085282291", "price_aed": 30, "eta_min": 20},
-    "alternatives": [], "addon": {"name": "Soft Drinks", "price_aed": 10}, "confidence": 0.3
   }
 }

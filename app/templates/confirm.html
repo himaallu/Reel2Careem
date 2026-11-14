@@ -11,6 +11,8 @@
   .green { color: #3ddc84; }
   .btn { background: #00b26b; }
   .btn:disabled { background: #2a3b32; color: #8aa597; }
+  .opt { border: 1px solid #1f3328; } .opt:has(input:checked) { border-color: #3ddc84; background: rgba(61,220,132,.08); }
+  .off { opacity: .4; pointer-events: none; }
 </style>
 </head>
 <body class="min-h-screen text-slate-100 font-sans">
@@ -23,20 +25,20 @@
 
   {% if r.item and r.merchant %}
   <section class="card rounded-2xl overflow-hidden">
-    {% if r.item.image_url %}<img src="{{ r.item.image_url }}" alt="" class="w-full h-48 object-cover">{% endif %}
+    {% if r.item.image_url %}<img id="heroImg" src="{{ r.item.image_url }}" alt="" class="w-full h-48 object-cover">{% endif %}
     <div class="p-4 space-y-1">
-      <p class="text-xs uppercase tracking-wide text-slate-400">{{ "Found it" if r.status == "found" else "Closest match" }}</p>
-      <h2 class="text-xl font-semibold">{{ r.item.name }}</h2>
-      <p class="text-slate-300">{{ r.merchant.name }}</p>
+      <p id="heroTag" class="text-xs uppercase tracking-wide text-slate-400">{{ "Found it" if r.status == "found" else "Closest match" }}</p>
+      <h2 id="heroName" class="text-xl font-semibold">{{ r.item.name }}</h2>
+      <p id="heroMerchant" class="text-slate-300">{{ r.merchant.name }}{% if r.merchant.area %} · {{ r.merchant.area }}{% endif %}</p>
       <div class="flex items-baseline gap-3 pt-2">
         <span class="text-2xl font-bold green">AED <span id="total" data-base="{{ r.item.price_aed or 0 }}">{{ '%g' % (r.item.price_aed or 0) }}</span></span>
-        {% if r.item.eta_min %}<span class="text-sm text-slate-400">~{{ r.item.eta_min }} min</span>{% endif %}
+        <span id="heroEta" class="text-sm text-slate-400">{% if r.item.eta_min %}~{{ r.item.eta_min }} min{% endif %}</span>
       </div>
     </div>
   </section>
 
   {% if r.addon %}
-  <label class="card rounded-2xl p-4 flex items-center gap-3 cursor-pointer">
+  <label id="addonRow" class="card rounded-2xl p-4 flex items-center gap-3 cursor-pointer">
     <input id="addon" type="checkbox" class="h-5 w-5 accent-emerald-500" data-price="{{ r.addon.price_aed or 0 }}" {% if order %}disabled{% endif %}>
     <span class="flex-1">Add <b>{{ r.addon.name }}</b></span>
     <span class="text-slate-300">+AED {{ '%g' % (r.addon.price_aed or 0) }}</span>
@@ -45,15 +47,27 @@
 
   {% if r.alternatives %}
   <section class="card rounded-2xl p-4">
-    <h3 class="text-sm text-slate-400 mb-2">Compare nearby</h3>
-    <ul class="space-y-2">
+    <h3 class="text-sm text-slate-400 mb-2">Compare nearby — tap to choose</h3>
+    <div class="space-y-2">
+      <label class="opt flex items-center justify-between gap-3 text-sm rounded-xl p-3 cursor-pointer">
+        <input type="radio" name="pick" value="" checked class="accent-emerald-500" {% if order %}disabled{% endif %}
+               data-name="{{ r.item.name }}" data-merchant="{{ r.merchant.name }}{% if r.merchant.area %} · {{ r.merchant.area }}{% endif %}"
+               data-price="{{ r.item.price_aed or 0 }}" data-eta="{{ r.item.eta_min or '' }}" data-img="{{ r.item.image_url or '' }}"
+               data-tag="{{ 'Found it' if r.status == 'found' else 'Closest match' }}">
+        <span class="flex-1"><b>{{ r.item.name }}</b><br><span class="text-slate-400">{{ r.merchant.name }}{% if r.item.eta_min %} · ~{{ r.item.eta_min }} min{% endif %}</span></span>
+        <span class="whitespace-nowrap">AED {{ '%g' % (r.item.price_aed or 0) }}</span>
+      </label>
       {% for a in r.alternatives %}
-      <li class="flex justify-between gap-2 text-sm">
-        <span><b>{{ a.item.name }}</b><br><span class="text-slate-400">{{ a.merchant.name }}{% if a.eta_min %} · ~{{ a.eta_min }} min{% endif %}</span></span>
+      <label class="opt flex items-center justify-between gap-3 text-sm rounded-xl p-3 cursor-pointer">
+        <input type="radio" name="pick" value="{{ loop.index0 }}" class="accent-emerald-500" {% if order %}disabled{% endif %}
+               data-name="{{ a.item.name }}" data-merchant="{{ a.merchant.name }}{% if a.merchant.area %} · {{ a.merchant.area }}{% endif %}"
+               data-price="{{ a.price_aed or a.item.price_aed or 0 }}" data-eta="{{ a.eta_min or a.item.eta_min or '' }}"
+               data-img="{{ a.item.image_url or '' }}" data-tag="Alternative nearby">
+        <span class="flex-1"><b>{{ a.item.name }}</b><br><span class="text-slate-400">{{ a.merchant.name }}{% if a.eta_min %} · ~{{ a.eta_min }} min{% endif %}</span></span>
         <span class="whitespace-nowrap">AED {{ '%g' % (a.price_aed or a.item.price_aed or 0) }}</span>
-      </li>
+      </label>
       {% endfor %}
-    </ul>
+    </div>
   </section>
   {% endif %}
 
@@ -82,15 +96,31 @@
   if (!btn) return;
   const addon = document.getElementById('addon');
   const total = document.getElementById('total');
-  if (addon && total) addon.addEventListener('change', () => {
-    const v = parseFloat(total.dataset.base) + (addon.checked ? parseFloat(addon.dataset.price) : 0);
+  const recalc = () => {
+    if (!total) return;
+    const v = parseFloat(total.dataset.base) + (addon && addon.checked ? parseFloat(addon.dataset.price) : 0);
     total.textContent = Number.isInteger(v) ? v : v.toFixed(2);
-  });
+  };
+  if (addon) addon.addEventListener('change', recalc);
+  const set = (id, prop, v) => { const el = document.getElementById(id); if (el) el[prop] = v; };
+  document.querySelectorAll('input[name=pick]').forEach(r => r.addEventListener('change', () => {
+    const d = r.dataset;
+    set('heroName', 'textContent', d.name); set('heroMerchant', 'textContent', d.merchant);
+    set('heroTag', 'textContent', d.tag); set('heroEta', 'textContent', d.eta ? `~${d.eta} min` : '');
+    const img = document.getElementById('heroImg');
+    if (img) { if (d.img) { img.src = d.img; img.style.display = ''; } else { img.style.display = 'none'; } }
+    if (total) total.dataset.base = d.price;
+    const row = document.getElementById('addonRow');      // the add-on belongs to the main restaurant only
+    if (row) { row.classList.toggle('off', r.value !== ''); if (r.value !== '' && addon) addon.checked = false; }
+    recalc();
+  }));
   btn.addEventListener('click', async () => {
     btn.disabled = true;                       // one tap only
     btn.textContent = 'Confirming…';
     const msg = document.getElementById('msg');
-    const body = new URLSearchParams({ addon: addon && addon.checked ? 'true' : 'false' });
+    const chosen = document.querySelector('input[name=pick]:checked');
+    const body = new URLSearchParams({ addon: addon && addon.checked ? 'true' : 'false', pick: chosen ? chosen.value : '' });
+    document.querySelectorAll('input[name=pick]').forEach(x => x.disabled = true);
     try {
       const r = await fetch('/c/{{ token }}/confirm', { method: 'POST', body });
       const j = await r.json();

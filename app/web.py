@@ -110,7 +110,8 @@ def confirm_page(token: str, request: Request) -> HTMLResponse:
 
 
 @app.post("/c/{token}/confirm")
-def confirm_order(token: str, addon: bool = Form(False)) -> JSONResponse:
+def confirm_order(token: str, addon: bool = Form(False), pick: str = Form("")) -> JSONResponse:
+    """pick = "" for the main dish, or the index of an alternative ("0", "1", ...)."""
     m = _match_or_404(token)
     existing = db.get_order(token)
     if existing and existing.get("checkout_attempted"):
@@ -124,7 +125,8 @@ def confirm_order(token: str, addon: bool = Form(False)) -> JSONResponse:
                              "message": "Ordering isn't switched on yet — open the Careem app to order."}, 503)
     try:
         try:
-            res = place(token, addon=addon)
+            alt = int(pick) if pick.strip().isdigit() else None
+            res = place(token, addon=addon and alt is None, pick=alt)
         except TypeError:
             res = place(token)
     except Exception as e:  # noqa: BLE001  orders.place should never raise, but never retry if it does
