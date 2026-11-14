@@ -11,6 +11,7 @@ import base64
 import hashlib
 import logging
 import os
+import re
 import secrets
 import tempfile
 import threading
@@ -153,7 +154,7 @@ def _token_request(form: dict[str, str]) -> dict[str, Any]:
         except httpx.HTTPError as e:
             raise CareemAuthError(f"token request failed: {type(e).__name__}") from None
     if r.status_code != 200:
-        err = _oauth_error(r) or "unknown_error"
+        err = _oauth_error(r) or _describe_non_oauth(r)
         raise CareemAuthError(f"token endpoint HTTP {r.status_code}: {err}")
     try:
         tok = r.json()
@@ -175,6 +176,18 @@ def _oauth_error(r: httpx.Response) -> Optional[str]:
     err = body.get("error")
     desc = body.get("error_description")
     return f"{err}: {desc}" if err and desc else err
+
+
+def _describe_non_oauth(r: httpx.Response) -> str:
+    """Describe a non-OAuth error (e.g. a CDN/WAF block page) without echoing the body."""
+    server = r.headers.get("server", "?")
+    ctype = r.headers.get("content-type", "?").split(";")[0]
+    ray = r.headers.get("cf-ray")
+    if ray or server.lower() == "cloudflare":
+        title = re.search(r"<title>([^<]{0,120})</title>", r.text or "", re.I)
+        return (f"blocked by Cloudflare before reaching Careem Identity "
+                f"(cf-ray={ray or '?'}, page title={title.group(1).strip() if title else '?'!r})")
+    return f"unknown_error (server={server}, content-type={ctype})"
 
 
 def exchange_code(code: str, code_verifier: str) -> dict[str, Any]:
