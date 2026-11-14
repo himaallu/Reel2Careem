@@ -26,3 +26,6 @@ venv/
 
 # sandbox runtime
 sandbox/.run/
+
+# raw webhook captures from scripts/webhook_probe.py
+fixtures/webhook_samples/
