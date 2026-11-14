@@ -176,6 +176,7 @@ class Evidence:
         self.items: list[dict[str, Any]] = []
         self.restaurants: list[dict[str, Any]] = []
         self.images: dict[str, str] = {}   # item id -> image_url (stripped from what the model sees)
+        self.ok_calls = 0                  # tool calls that returned data without an "error" field
 
     def add(self, value: Any, rest: Optional[dict[str, Any]] = None) -> None:
         if isinstance(value, list):
@@ -280,6 +281,9 @@ def build_result(raw: dict[str, Any], ev: Evidence, *, mode: str, steps: list[st
     status = raw.get("status")
     if status not in ("found", "closest", "none", "not_buying"):
         raise AgentError(f"bad status {status!r}")
+    if status == "none" and ev.ok_calls == 0:
+        # "Not on Careem" is a claim about Careem: it needs at least one search that actually worked.
+        raise AgentError("status 'none' but no Careem search succeeded")
     m, it = raw.get("merchant"), raw.get("item")
     merchant = item = None
     if status in ("found", "closest"):
@@ -381,6 +385,8 @@ def run_agent(signal: Signal, *, mcp: Any = None, client: Any = None) -> AgentRe
     mcp = mcp or careem_mcp.get()
     client = client or bedrock_client()
     mode = "live" if mcp.target == "production" else "scripted"
+    if mcp.target == "production" and mcp._demo_location() is None:
+        raise AgentError("DEMO_LAT/DEMO_LNG are not set in .env — production Careem needs a location")
     tools = tool_config(mcp)
     messages: list[dict[str, Any]] = [{"role": "user", "content": _user_content(signal)}]
     ev = Evidence()
@@ -455,6 +461,8 @@ def _run_tools(uses: list[dict[str, Any]], signal: Signal, mcp: Any, ev: Evidenc
         try:
             out = mcp.call(name, args, signal_id=signal.id, timeout=timeout)
             ev.add(out)
+            if isinstance(out, dict) and not out.get("error"):
+                ev.ok_calls += 1
             status = "error" if isinstance(out, dict) and out.get("error") and len(out) <= 3 else "success"
             return {"toolResult": {"toolUseId": u["toolUseId"], "status": status,
                                    "content": [{"text": compact_text(out)}]}}

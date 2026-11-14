@@ -163,6 +163,32 @@ def main() -> int:
     r = agent.run_agent(sig(text="lol nice", caption="sunset"), mcp=mcp, client=fake)
     check(r.status == "not_buying" and len(fake.requests) == 2, "missing submit -> nudge -> parsed")
 
+    # 4b. "none" without any successful search is rejected (no fake missed demand)
+    fake = FakeBedrock([tool_msg(("food_dish_search", {"query": "trigger_upstream_down"})), tool_msg((agent.SUBMIT, {
+        "status": "none", "wanted": "x", "service": "food", "confidence": 0.1, "missed_demand": "x"}))])
+    try:
+        agent.run_agent(sig(), mcp=mcp, client=fake)
+        check(False, "'none' with no successful search rejected")
+    except agent.AgentError as e:
+        check("no Careem search succeeded" in str(e), "'none' with no successful search rejected")
+    fake = FakeBedrock([tool_msg(("food_dish_search", {"query": "xyz"})), tool_msg((agent.SUBMIT, {
+        "status": "none", "wanted": "xyz", "service": "food", "confidence": 0.7}))])
+    r = agent.run_agent(sig(caption="xyz"), mcp=mcp, client=fake)
+    check(r.status == "none" and r.missed_demand == "xyz", "'none' after a real empty search is accepted")
+
+    # 4c. production without DEMO_LAT/LNG fails fast, before any model call
+    prod = careem_mcp.CareemMCP("production")
+    saved = {k: os.environ.pop(k, None) for k in ("DEMO_LAT", "DEMO_LNG")}
+    fake = FakeBedrock([])
+    try:
+        agent.run_agent(sig(), mcp=prod, client=fake)
+        check(False, "production without location fails fast")
+    except agent.AgentError as e:
+        check("DEMO_LAT" in str(e) and not fake.requests, "production without location fails fast (0 model calls)")
+    for k, v in saved.items():
+        if v is not None:
+            os.environ[k] = v
+
     # 5. budget: slow model -> AgentError within ~budget
     os.environ["AGENT_BUDGET_S"] = "2"
     agent.BUDGET_S = 2.0
