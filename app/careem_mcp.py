@@ -106,7 +106,10 @@ class CareemMCP:
                   signal_id: Optional[str] = None, timeout: float = READ_TIMEOUT_S) -> dict[str, Any]:
         """Run a CODE_ONLY tool (cart/checkout) exactly once. Only orders.py should use this."""
         self._check_allowed(name, code=True)
-        retries = READ_RETRIES if name in CODE_ONLY_READS else 0
+        # Retry only if we think it's a read AND the live server agrees (production marks
+        # cart_get_basket / cart_get_basket_price as not read-only, so they are never retried there).
+        ann = (self._tools.get(name) or {}).get("annotations") or {}
+        retries = READ_RETRIES if name in CODE_ONLY_READS and ann.get("readOnlyHint") is True else 0
         return self._run(name, args, signal_id=signal_id, timeout=timeout, retries=retries)
 
     def list_tools(self, refresh: bool = False, timeout: float = READ_TIMEOUT_S) -> list[dict[str, Any]]:
