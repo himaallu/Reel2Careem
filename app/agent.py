@@ -50,8 +50,10 @@ Find, using the tools:
 1. The exact dish (or its closest match) and the restaurant selling it. If the post names a restaurant, \
 look there first (food_merchant_search, then food_search_restaurant_items or food_get_restaurant_menu); \
 otherwise use food_dish_search.
-2. 2-3 similar dishes at OTHER restaurants (never the same restaurant) for price comparison \
-(food_dish_search results are ideal).
+2. 2-3 alternatives. If the post names several flavours/variants (e.g. "Pecanbon, Pistachio Kunafa or Classic \
+Cinnabons"), pick the one the post is mainly about as the main dish and look up the other NAMED variants at the \
+same restaurant (food_search_restaurant_items) - list those first as alternatives. Otherwise use similar dishes \
+at OTHER restaurants for price comparison (food_dish_search results are ideal).
 3. One cheap add-on (side, drink or dessert) from the chosen restaurant's menu.
 
 Be fast: aim for 2-4 tool turns and call independent tools in parallel in the same turn. \
@@ -287,7 +289,16 @@ def _num(v: Any) -> Any:
         return None
 
 
-def build_result(raw: dict[str, Any], ev: Evidence, *, mode: str, steps: list[str], t0: float) -> AgentResult:
+def _named_in(item_name: str, merchant_name: str, context: str) -> bool:
+    """Is this item a variant the post itself names? ('Pistachio Kunafa Cinnabon' vs a caption saying 'Pistachio Kunafa')."""
+    stop = {"the", "and", "with", "made", "classic", "regular", "small", "large", "medium", "box", "pcs", "piece"}
+    words = {w for w in re.findall(r"[a-z]{4,}", item_name.lower())} - set(re.findall(r"[a-z]+", merchant_name.lower())) - stop
+    ctx = context.lower()
+    return bool(words) and any(w in ctx for w in words)
+
+
+def build_result(raw: dict[str, Any], ev: Evidence, *, mode: str, steps: list[str], t0: float,
+                 context: str = "") -> AgentResult:
     status = raw.get("status")
     if status not in ("found", "closest", "none", "not_buying"):
         raise AgentError(f"bad status {status!r}")
@@ -311,9 +322,10 @@ def build_result(raw: dict[str, Any], ev: Evidence, *, mode: str, steps: list[st
         if not _grounded_item(ev, am, ai, a.get("price_aed"), a.get("eta_min")):
             steps.append(f"dropped ungrounded alternative {ai and ai.get('name')!r}")
             continue
-        if merchant and (str(am.get("id")) == merchant.id or am.get("name") == merchant.name):
+        same = merchant and (str(am.get("id")) == merchant.id or am.get("name") == merchant.name)
+        if same and (ai.get("name") == item.name or not _named_in(ai.get("name") or "", merchant.name, context)):
             steps.append(f"dropped same-restaurant alternative {ai.get('name')!r}")
-            continue  # alternatives are for comparing OTHER restaurants
+            continue  # same restaurant only if the post itself names this variant
         arest = ev.find_restaurant(am)
         alts.append(Alternative(
             merchant=Merchant(am["name"], str(am["id"]) if am.get("id") is not None else None,
@@ -405,6 +417,7 @@ def run_agent(signal: Signal, *, mcp: Any = None, client: Any = None) -> AgentRe
     tools = tool_config(mcp)
     messages: list[dict[str, Any]] = [{"role": "user", "content": _user_content(signal)}]
     ev = Evidence()
+    context = f"{signal.caption or ''} {signal.text or ''}"
     steps: list[str] = []
     nudged = False
     kwargs: dict[str, Any] = {}
@@ -442,7 +455,7 @@ def run_agent(signal: Signal, *, mcp: Any = None, client: Any = None) -> AgentRe
         submit = next((u for u in uses if u["name"] == SUBMIT), None)
         if submit is not None:
             steps.append(f"turn {turn}: submit_result ({ms} ms)")
-            res = build_result(submit.get("input") or {}, ev, mode=mode, steps=steps, t0=t0)
+            res = build_result(submit.get("input") or {}, ev, mode=mode, steps=steps, t0=t0, context=context)
             return res
 
         if stop == "tool_use" and uses:
@@ -459,7 +472,7 @@ def run_agent(signal: Signal, *, mcp: Any = None, client: Any = None) -> AgentRe
             raw = _json_from_text(said)
             if raw:
                 steps.append(f"turn {turn}: result as text ({ms} ms)")
-                return build_result(raw, ev, mode=mode, steps=steps, t0=t0)
+                return build_result(raw, ev, mode=mode, steps=steps, t0=t0, context=context)
             if nudged:
                 raise AgentError("model ended without a result after a nudge")
             nudged = True

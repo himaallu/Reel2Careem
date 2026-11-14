@@ -121,6 +121,28 @@ def main() -> int:
     check(any("Time is almost up" in (c.get("text") or "") for c in last_user) and r.item.name == "Chicken Shawarma Wrap",
           "near the deadline the model is told to submit now, and does")
 
+    # 3d. a flavour the caption names is kept as a same-restaurant alternative; an unnamed one is not
+    def run_with(caption, alt_item):
+        class C:
+            script = [
+                {"output": {"message": {"role": "assistant", "content": [{"toolUse": {"toolUseId": "a",
+                    "name": "food_get_restaurant_menu", "input": {"restaurant_id": 30101}}}]}}, "stopReason": "tool_use"},
+                {"output": {"message": {"role": "assistant", "content": [{"toolUse": {"toolUseId": "b", "name": agent.SUBMIT, "input": {
+                    "status": "found", "wanted": "x", "service": "food", "confidence": 0.8,
+                    "merchant": {"name": "Shawarma Station", "id": 30101},
+                    "item": {"name": "Falafel Plate", "id": 700102, "price_aed": 22},
+                    "alternatives": [{"merchant": {"name": "Shawarma Station", "id": 30101},
+                                      "item": {"name": alt_item[0], "id": alt_item[1]}, "price_aed": alt_item[2]}]}}}]}},
+                 "stopReason": "tool_use"}]
+
+            def converse(self, **kw):  # noqa: ANN003
+                return C.script.pop(0)
+        return agent.run_agent(sig(caption=caption), mcp=careem_mcp.get("sandbox"), client=C())
+    r = run_with("Falafel plate or the mixed grill platter at Shawarma Station", ("Mixed Grill Platter", 700103, 65))
+    check([a.item.name for a in r.alternatives] == ["Mixed Grill Platter"], "named flavour kept as same-restaurant alternative")
+    r = run_with("Falafel plate at Shawarma Station", ("Mixed Grill Platter", 700103, 65))
+    check(r.alternatives == [], "unnamed same-restaurant item still dropped")
+
     # 4. no invented dish when nothing matches
     old = fallbacks.SCRIPTED_PATH
     r = fallbacks.fallback_resolve(sig(text="hello there"), reason="all down", mode="scripted")
