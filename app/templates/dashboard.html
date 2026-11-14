@@ -1,0 +1,322 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Careem Genie · Live</title>
+<script src="https://cdn.tailwindcss.com/3.4.16"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  :root { --bg:#07110c; --panel:#0e1b14; --line:#1d3226; --green:#3ddc84; --dim:#7f9b8c; }
+  body { background: radial-gradient(1200px 600px at 20% -10%, #0f2a1c 0%, var(--bg) 60%); color:#e6f4ec; }
+  .panel { background: color-mix(in srgb, var(--panel) 92%, transparent); border:1px solid var(--line); border-radius:16px; }
+  .ptitle { font-size:11px; letter-spacing:.12em; text-transform:uppercase; color:var(--dim); }
+  .pill { display:inline-flex; align-items:center; gap:6px; padding:3px 10px; border-radius:999px; border:1px solid var(--line); font-size:12px; }
+  .dot { width:8px; height:8px; border-radius:50%; background:#64748b; }
+  .ok .dot { background:var(--green); box-shadow:0 0 8px var(--green); }
+  .bad .dot { background:#f87171; box-shadow:0 0 8px #f87171; }
+  .badge { font-size:10px; font-weight:700; letter-spacing:.08em; padding:2px 7px; border-radius:6px; text-transform:uppercase; }
+  .b-live { background:#064e3b; color:#6ee7b7; } .b-cached { background:#422006; color:#fcd34d; }
+  .b-scripted { background:#3b0764; color:#d8b4fe; } .b-rules { background:#1e3a8a; color:#93c5fd; }
+  .b-sim { background:#334155; color:#e2e8f0; } .b-demo { background:#7c2d12; color:#fdba74; }
+  .scroll { overflow-y:auto; scrollbar-width:thin; scrollbar-color:#1d3226 transparent; }
+  .tl-item { animation: slidein .35s ease-out; }
+  @keyframes slidein { from { opacity:0; transform:translateY(-6px);} to { opacity:1; transform:none; } }
+  .phone { width:300px; border-radius:38px; border:10px solid #111; background:#000; box-shadow:0 20px 60px rgba(0,0,0,.6); }
+  .bubble { background:#3797f0; color:#fff; border-radius:18px 18px 4px 18px; padding:10px 12px; white-space:pre-wrap; font-size:13px; line-height:1.35; }
+  .bubble-in { background:#262626; color:#fff; border-radius:18px 18px 18px 4px; padding:8px 12px; font-size:13px; }
+  .kpi-v { font-size:34px; font-weight:800; line-height:1; font-variant-numeric: tabular-nums; }
+  table td, table th { padding:4px 6px; }
+  .tab { padding:2px 10px; border-radius:8px; font-size:12px; color:var(--dim); }
+  .tab.on { background:#13291d; color:#e6f4ec; }
+</style>
+</head>
+<body class="min-h-screen font-sans">
+<div class="p-4 space-y-3 max-w-[1920px] mx-auto">
+
+  <!-- header -->
+  <header class="flex flex-wrap items-center gap-3">
+    <div class="flex items-center gap-2">
+      <span class="text-3xl">🧞</span>
+      <div>
+        <h1 class="text-xl font-bold leading-tight">Careem Genie <span class="text-[color:var(--green)]">Live</span></h1>
+        <p class="text-xs text-[color:var(--dim)]">Reels &amp; comments → dish on Careem → DM → basket</p>
+      </div>
+    </div>
+    <div id="health" class="flex flex-wrap gap-2 ml-4"></div>
+    <div class="ml-auto flex items-center gap-2">
+      <span id="demoBadge" class="badge b-demo hidden">demo data</span>
+      <span class="text-xs text-[color:var(--dim)]">Agent</span>
+      <span id="modeBadge" class="badge b-live">live</span>
+      <select id="modeSel" class="bg-[#0e1b14] border border-[color:var(--line)] rounded-md text-sm px-2 py-1">
+        <option value="live">live</option><option value="cached">cached</option><option value="scripted">scripted</option>
+      </select>
+      <span class="text-xs text-[color:var(--dim)]">Orders</span>
+      <span id="orderMode" class="badge b-sim">basket</span>
+      <button id="simBtn" class="ml-2 text-sm px-3 py-1 rounded-md border border-[color:var(--line)] hover:bg-[#13291d]">Simulate</button>
+      <span id="clock" class="text-sm tabular-nums text-[color:var(--dim)] w-20 text-right"></span>
+    </div>
+  </header>
+
+  <!-- simulate drawer -->
+  <form id="simForm" class="panel p-3 hidden flex flex-wrap gap-2 items-end">
+    <label class="text-xs text-[color:var(--dim)]">Kind<br>
+      <select name="kind" class="bg-black/30 border border-[color:var(--line)] rounded px-2 py-1 text-sm text-white">
+        <option value="comment">comment on collab post</option><option value="dm_share">reel shared in DM</option>
+      </select></label>
+    <label class="text-xs text-[color:var(--dim)] flex-1 min-w-[200px]">Comment / DM text<br>
+      <input name="text" value="price?" class="w-full bg-black/30 border border-[color:var(--line)] rounded px-2 py-1 text-sm text-white"></label>
+    <label class="text-xs text-[color:var(--dim)] flex-[2] min-w-[260px]">Post / reel caption<br>
+      <input name="caption" value="Best chicken shawarma in Dubai Marina 🌯 📍 Shawarma Station" class="w-full bg-black/30 border border-[color:var(--line)] rounded px-2 py-1 text-sm text-white"></label>
+    <label class="text-xs text-[color:var(--dim)]">User<br>
+      <input name="user" value="demo_user" class="w-32 bg-black/30 border border-[color:var(--line)] rounded px-2 py-1 text-sm text-white"></label>
+    <button class="px-4 py-1.5 rounded-md bg-emerald-600 hover:bg-emerald-500 text-sm font-semibold">Inject signal</button>
+    <span id="simMsg" class="text-xs text-[color:var(--dim)]"></span>
+  </form>
+
+  <!-- KPIs -->
+  <section id="kpis" class="grid grid-cols-2 md:grid-cols-6 gap-3"></section>
+
+  <!-- main row -->
+  <section class="grid grid-cols-1 xl:grid-cols-[1fr_1.35fr_340px] gap-3" style="min-height:470px">
+    <div class="panel p-3 flex flex-col min-h-0">
+      <div class="flex items-center justify-between mb-2"><span class="ptitle">Live signals</span><span id="feedCount" class="text-xs text-[color:var(--dim)]"></span></div>
+      <div id="feed" class="scroll space-y-2 flex-1" style="max-height:440px"></div>
+    </div>
+    <div class="panel p-3 flex flex-col min-h-0">
+      <div class="flex items-center justify-between mb-2"><span class="ptitle">Agent reasoning · streaming</span><span id="sse" class="pill"><span class="dot"></span>stream</span></div>
+      <div id="timeline" class="scroll space-y-1.5 flex-1 font-mono text-[12.5px]" style="max-height:440px"></div>
+    </div>
+    <div class="panel p-3 flex flex-col items-center">
+      <span class="ptitle self-start mb-2">What Genie sent</span>
+      <div class="phone">
+        <div class="h-[560px] rounded-[28px] bg-black flex flex-col overflow-hidden">
+          <div class="flex items-center gap-2 px-3 py-3 border-b border-white/10">
+            <div class="w-7 h-7 rounded-full bg-emerald-600 grid place-items-center text-sm">🧞</div>
+            <div class="text-[13px] leading-tight"><b>Careem Genie (demo)</b><br><span id="phoneTo" class="text-white/50 text-[11px]">—</span></div>
+          </div>
+          <div id="phone" class="flex-1 scroll p-3 space-y-2 flex flex-col justify-end">
+            <p class="text-center text-white/40 text-xs">Waiting for the first DM…</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- bottom row -->
+  <section class="grid grid-cols-1 xl:grid-cols-4 gap-3">
+    <div class="panel p-3"><span class="ptitle">Funnel</span><div class="h-56 mt-2"><canvas id="funnel"></canvas></div></div>
+    <div class="panel p-3">
+      <div class="flex items-center gap-1 mb-2"><span class="ptitle mr-auto">Leaderboard</span>
+        <button class="tab on" data-lb="reel">Reel</button><button class="tab" data-lb="creator">Creator</button>
+        <button class="tab" data-lb="restaurant">Restaurant</button><button class="tab" data-lb="platform">Platform</button></div>
+      <table class="w-full text-sm"><thead class="text-[color:var(--dim)] text-xs"><tr><th class="text-left">Name</th><th>Signals</th><th>Matched</th><th>Orders</th><th>AED</th></tr></thead>
+        <tbody id="lb"></tbody></table>
+    </div>
+    <div class="panel p-3"><span class="ptitle">Missed demand</span><ul id="missed" class="mt-2 space-y-1 text-sm scroll" style="max-height:220px"></ul></div>
+    <div class="panel p-3"><span class="ptitle">Latency per stage</span><div class="h-56 mt-2"><canvas id="latency"></canvas></div></div>
+  </section>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const dubai = (iso) => { try { return new Date(iso).toLocaleTimeString('en-GB', {timeZone:'Asia/Dubai', hour12:false}); } catch { return ''; } };
+const parse = (s) => { try { return typeof s === 'string' ? JSON.parse(s) : (s || {}); } catch { return {text: s}; } };
+const modeClass = (m) => ({live:'b-live', cached:'b-cached', scripted:'b-scripted', rules:'b-rules'})[m] || 'b-sim';
+let state = null, lbKey = 'reel', funnelChart = null, latChart = null;
+
+setInterval(() => { $('clock').textContent = new Date().toLocaleTimeString('en-GB', {timeZone:'Asia/Dubai', hour12:false}); }, 1000);
+
+// ---------------------------------------------------------------- state rendering
+function renderHealth(h) {
+  const names = {instagram:'Instagram', careem_mcp:'Careem MCP', bedrock:'Bedrock', tunnel:'Tunnel'};
+  let html = Object.entries(names).map(([k, label]) => {
+    const c = h.components[k];
+    const cls = !c ? '' : (c.ok ? 'ok' : 'bad');
+    return `<span class="pill ${cls}" title="${esc(c ? c.detail + ' · ' + dubai(c.ts) : 'no data yet')}"><span class="dot"></span>${label}</span>`;
+  }).join('');
+  const ago = h.last_poll_s_ago;
+  const pc = ago == null ? '' : (ago < 15 && !h.poll_error ? 'ok' : 'bad');
+  html += `<span class="pill ${pc}" title="${esc(h.poll_error || (h.watching.length + ' posts watched'))}"><span class="dot"></span>poll ${ago == null ? 'off' : Math.round(ago) + 's ago'}</span>`;
+  $('health').innerHTML = html;
+}
+
+function renderKpis(k) {
+  const items = [
+    ['Signals', k.signals], ['DMs sent', k.dms_sent], ['Confirm opens', k.confirm_opens],
+    ['Orders', k.orders], ['AED in baskets', k.aed.toLocaleString()], ['Avg agent latency', (k.avg_latency_ms/1000).toFixed(1) + 's'],
+  ];
+  $('kpis').innerHTML = items.map(([l, v]) => `<div class="panel px-4 py-3"><div class="ptitle">${l}</div><div class="kpi-v mt-1">${esc(v)}</div></div>`).join('');
+  $('demoBadge').classList.toggle('hidden', !k.demo_rows);
+}
+
+function statusChip(r, s) {
+  if (!r) return `<span class="text-xs text-[color:var(--dim)]">${esc(s.last_stage || 'received')}</span>`;
+  const col = {found:'text-emerald-300', closest:'text-amber-300', none:'text-rose-300'}[r.status] || 'text-slate-300';
+  return `<span class="text-xs ${col} font-semibold">${esc(r.status)}</span> <span class="badge ${modeClass(r.mode)}">${esc(r.mode)}</span>`;
+}
+
+function renderFeed(rows) {
+  $('feedCount').textContent = rows.length ? `${rows.length} latest` : '';
+  $('feed').innerHTML = rows.map(s => {
+    const r = s.result;
+    const icon = s.kind === 'comment' ? '💬' : '🎬';
+    const sim = String(s.source_id).startsWith('sim-');
+    const hit = r && r.item ? `<div class="text-sm mt-1">→ <b>${esc(r.item.name)}</b> · ${esc(r.merchant?.name)} · AED ${esc(r.item.price_aed)}</div>` : '';
+    return `<div class="rounded-xl border border-[color:var(--line)] p-2.5 bg-black/20 tl-item cursor-pointer" data-sig="${esc(s.id)}">
+      <div class="flex items-center gap-2 text-xs text-[color:var(--dim)]">
+        <span>📸 ${icon}</span><span>@${esc(s.user_ref)}</span>
+        ${sim ? '<span class="badge b-sim">simulated</span>' : ''}${s.demo ? '<span class="badge b-demo">demo</span>' : ''}
+        <span class="ml-auto">${dubai(s.received_at)}</span></div>
+      ${s.text ? `<div class="text-[15px] mt-1">“${esc(s.text)}”</div>` : ''}
+      ${s.caption ? `<div class="text-xs text-[color:var(--dim)] mt-1 line-clamp-2">${esc(s.caption.slice(0, 160))}</div>` : ''}
+      ${hit}<div class="mt-1">${statusChip(r, s)}</div></div>`;
+  }).join('') || '<p class="text-sm text-[color:var(--dim)]">No signals yet. Share a reel to Genie or comment on a collab post.</p>';
+  document.querySelectorAll('#feed [data-sig]').forEach(el => el.onclick = () => showSignalTimeline(el.dataset.sig));
+}
+
+function renderLb() {
+  if (!state) return;
+  const rows = state.leaderboards[lbKey] || [];
+  $('lb').innerHTML = rows.map(r => `<tr class="border-t border-[color:var(--line)]"><td class="truncate max-w-[180px]" title="${esc(r.label)}">${esc(r.label)}</td>
+    <td class="text-center">${r.signals}</td><td class="text-center">${r.matched}</td><td class="text-center">${r.orders}</td><td class="text-center">${Math.round(r.aed)}</td></tr>`).join('')
+    || '<tr><td colspan="5" class="text-[color:var(--dim)]">—</td></tr>';
+}
+document.querySelectorAll('[data-lb]').forEach(b => b.onclick = () => {
+  document.querySelectorAll('[data-lb]').forEach(x => x.classList.remove('on')); b.classList.add('on'); lbKey = b.dataset.lb; renderLb();
+});
+
+function renderMissed(rows) {
+  $('missed').innerHTML = rows.map(m => `<li class="flex gap-2"><span>🔎</span><span class="flex-1">${esc(m.wanted)}</span><span class="text-xs text-[color:var(--dim)]">${dubai(m.ts)}</span></li>`).join('')
+    || '<li class="text-[color:var(--dim)]">Nothing missed yet.</li>';
+}
+
+Chart.defaults.color = '#7f9b8c'; Chart.defaults.borderColor = '#1d3226'; Chart.defaults.font.family = 'ui-sans-serif, system-ui';
+function renderCharts(funnel, lat) {
+  const fData = { labels: funnel.map(f => f.stage), datasets: [{ data: funnel.map(f => f.n), backgroundColor: '#3ddc84', borderRadius: 6, barThickness: 18 }] };
+  if (!funnelChart) funnelChart = new Chart($('funnel'), { type: 'bar', data: fData,
+    options: { indexAxis: 'y', maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { beginAtZero: true, ticks: { precision: 0 } }, y: { grid: { display: false } } } } });
+  else { funnelChart.data = fData; funnelChart.update('none'); }
+  const lData = { labels: lat.map(l => l.stage), datasets: [{ data: lat.map(l => l.ms / 1000), backgroundColor: ['#3ddc84', '#22d3ee', '#a78bfa'], borderRadius: 6, barThickness: 22 }] };
+  if (!latChart) latChart = new Chart($('latency'), { type: 'bar', data: lData,
+    options: { maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => c.raw.toFixed(2) + ' s' } } },
+      scales: { y: { beginAtZero: true, title: { display: true, text: 'seconds' } }, x: { grid: { display: false } } } } });
+  else { latChart.data = lData; latChart.update('none'); }
+}
+
+function renderMode(m) {
+  $('modeBadge').textContent = m.agent_mode; $('modeBadge').className = 'badge ' + modeClass(m.agent_mode);
+  $('modeSel').value = m.agent_mode; $('orderMode').textContent = m.order_mode;
+}
+
+async function refresh() {
+  try {
+    state = await (await fetch('/api/state')).json();
+    renderHealth(state.health); renderKpis(state.kpis); renderFeed(state.feed); renderLb();
+    renderMissed(state.missed); renderCharts(state.funnel, state.latency); renderMode(state.mode);
+    if (!phoneShown) { const f = state.feed.find(s => s.dm); if (f) showPhone(f.dm, f); }
+  } catch (e) { console.warn('refresh failed', e); }
+}
+let refreshTimer = null;
+const soon = () => { clearTimeout(refreshTimer); refreshTimer = setTimeout(refresh, 400); };
+setInterval(refresh, 5000);
+
+// ---------------------------------------------------------------- timeline (SSE)
+const stageInfo = {
+  received:['📥','text-sky-300'], intent:['🎯','text-slate-300'], agent_step:['🧠','text-violet-300'],
+  tool_call:['🔧','text-cyan-300'], result:['✅','text-emerald-300'], reply_public:['💬','text-emerald-200'],
+  dm_sent:['📩','text-emerald-300'], confirm_open:['👆','text-amber-200'], order:['🛒','text-amber-300'],
+  fallback:['🛟','text-amber-300'], error:['⚠️','text-rose-300'],
+};
+function describe(ev) {
+  const d = parse(ev.detail);
+  switch (ev.stage) {
+    case 'received': return `${d.kind === 'comment' ? 'comment' : 'reel in DM'} from @${esc(d.user)}: ${esc(d.text || '')} ${d.caption ? '<span class="text-[color:var(--dim)]">· ' + esc(d.caption.slice(0, 70)) + '…</span>' : ''}`;
+    case 'intent': return `buying intent: <b>${d.buying ? 'yes' : 'no'}</b> <span class="text-[color:var(--dim)]">(${esc(d.how)})</span>`;
+    case 'agent_step': return `turn ${esc(d.turn)} · ${esc(d.ms)} ms → ${esc((d.tools || []).join(', ') || d.stop)} ${d.said ? '<span class="text-[color:var(--dim)]">“' + esc(d.said.slice(0, 120)) + '”</span>' : ''}`;
+    case 'tool_call': { const a = Object.entries(d.args || {}).map(([k, v]) => `${k}=${typeof v === 'object' ? JSON.stringify(v) : v}`).join(' ').slice(0, 110);
+      return `<b>${esc(d.tool)}</b>(${esc(a)}) · ${esc(d.ms)} ms ${d.target && d.target !== 'production' ? '<span class="badge b-sim">' + esc(d.target) + '</span>' : ''} ${d.error ? '<span class="text-rose-300">' + esc(String(d.error).slice(0, 80)) + '</span>' : ''}`; }
+    case 'result': return d.status === 'not_buying' ? 'not a buying comment → no reply' :
+      `<b>${esc(d.status)}</b> ${d.item ? esc(d.item) + ' · ' + esc(d.merchant) + ' · AED ' + esc(d.price_aed) : ''} <span class="badge ${modeClass(d.mode)}">${esc(d.mode)}</span> <span class="text-[color:var(--dim)]">${esc(d.latency_ms)} ms · conf ${esc(d.confidence)}</span>`;
+    case 'reply_public': return `public reply posted ${d.simulated ? '<span class="badge b-sim">simulated</span>' : ''}`;
+    case 'dm_sent': return `DM sent to ${esc(d.to)} ${d.total_ms ? '<span class="text-[color:var(--dim)]">· ' + (d.total_ms / 1000).toFixed(1) + ' s end-to-end</span>' : ''} ${d.simulated ? '<span class="badge b-sim">simulated</span>' : ''}`;
+    case 'confirm_open': return 'confirm page opened';
+    case 'order': return `order: <b>${esc(d.status)}</b> ${d.aed ? 'AED ' + esc(d.aed) : ''}`;
+    case 'fallback': return `fallback: ${esc(d.reason || '')}`;
+    case 'error': return `${esc(d.where || '')}: ${esc(d.error || ev.detail)}`;
+    default: return esc(typeof d === 'object' ? JSON.stringify(d).slice(0, 140) : d);
+  }
+}
+function tlRow(ev) {
+  const [icon, col] = stageInfo[ev.stage] || ['•', 'text-slate-300'];
+  return `<div class="tl-item flex gap-2 items-start"><span class="text-[color:var(--dim)] w-16 shrink-0">${dubai(ev.ts)}</span>
+    <span class="w-5 shrink-0">${icon}</span><span class="${col} w-24 shrink-0">${esc(ev.stage)}</span>
+    <span class="flex-1 break-words text-slate-200">${describe(ev)}</span></div>`;
+}
+function addTimeline(ev) {
+  const tl = $('timeline');
+  tl.insertAdjacentHTML('afterbegin', tlRow(ev));
+  while (tl.children.length > 150) tl.lastChild.remove();
+}
+async function showSignalTimeline(sigId) {
+  const evs = await (await fetch('/api/events/' + encodeURIComponent(sigId))).json();
+  $('timeline').innerHTML = evs.slice().reverse().map(tlRow).join('');
+  const s = (state?.feed || []).find(x => x.id === sigId);
+  if (s && s.dm) showPhone(s.dm, s);
+}
+
+let phoneShown = false;
+function showPhone(dm, sig) {
+  phoneShown = true;
+  const d = parse(dm);
+  $('phoneTo').textContent = 'to ' + (d.to || sig?.user_ref || '');
+  const incoming = sig ? (sig.kind === 'dm_share'
+      ? `<div class="bubble-in self-start max-w-[85%]">🎬 Shared a reel${sig.caption ? '<br><span class="text-white/60 text-[11px]">' + esc(sig.caption.slice(0, 80)) + '…</span>' : ''}</div>`
+      : `<div class="bubble-in self-start max-w-[85%] text-white/80">💬 commented “${esc(sig.text)}”</div>`) : '';
+  const linked = esc(d.text || '').replace(/(https?:\/\/[^\s]+)/g, '<u>$1</u>');
+  $('phone').innerHTML = `${incoming}<div class="bubble self-end max-w-[90%] tl-item">${linked}</div>
+    ${d.simulated ? '<p class="text-center text-white/40 text-[10px]">simulated — not sent to Instagram</p>' : '<p class="text-right text-white/40 text-[10px]">Sent ✓</p>'}`;
+}
+
+function connect() {
+  const es = new EventSource('/api/stream');
+  es.addEventListener('open', () => $('sse').className = 'pill ok');
+  es.addEventListener('error', () => $('sse').className = 'pill bad');
+  es.addEventListener('ev', (m) => {
+    const ev = JSON.parse(m.data);
+    addTimeline(ev);
+    if (ev.stage === 'dm_sent') {
+      const sig = (state?.feed || []).find(s => s.id === ev.signal_id);
+      showPhone(ev.detail, sig || null);
+    }
+    soon();
+  });
+}
+
+// ---------------------------------------------------------------- controls
+$('modeSel').onchange = async (e) => {
+  const r = await fetch('/api/mode', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode: e.target.value }) });
+  renderMode(await r.json());
+};
+$('simBtn').onclick = () => $('simForm').classList.toggle('hidden');
+$('simForm').onsubmit = async (e) => {
+  e.preventDefault();
+  const body = Object.fromEntries(new FormData(e.target));
+  const r = await fetch('/simulate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  $('simMsg').textContent = r.ok ? 'injected ✓' : 'failed: ' + (await r.text()).slice(0, 80);
+  setTimeout(() => $('simMsg').textContent = '', 3000);
+};
+
+refresh().then(async () => {
+  // seed the timeline with recent history, then stream
+  const evs = (state?.feed || []).slice(0, 3).map(s => s.id);
+  for (const id of evs.reverse()) {
+    const rows = await (await fetch('/api/events/' + encodeURIComponent(id))).json();
+    rows.forEach(addTimeline);
+  }
+  connect();
+});
+</script>
+</body>
+</html>
