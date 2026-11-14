@@ -178,7 +178,10 @@ def api_state() -> dict[str, Any]:
 @app.get("/api/metrics")
 def api_metrics() -> dict[str, Any]:
     from app import metrics
-    return {**metrics.compute(), "health": stats.health(), "mode": stats.mode()}
+    data = metrics.compute()
+    for f in data.get("feed") or []:  # numeric IGSIDs (reel shares) -> readable @username
+        f["username"] = instagram.username_for(str(f.get("user") or "")) or f.get("user")
+    return {**data, "health": stats.health(), "mode": stats.mode()}
 
 
 @app.get("/api/events/{signal_id}")
