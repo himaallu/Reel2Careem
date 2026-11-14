@@ -53,6 +53,14 @@ CODE_ONLY: frozenset[str] = CODE_ONLY_READS | MUTATING
 NEVER: frozenset[str] = frozenset({"create_ride", "cancel_ride", "save_new_address"})
 
 READ_TIMEOUT_S = float(os.getenv("CAREEM_CALL_TIMEOUT", "10"))
+# Production search answers can exceed the MCP SDK's 1 MB per-event default (seen live: food_dish_search).
+MAX_EVENT_BYTES = int(float(os.getenv("CAREEM_MAX_EVENT_MB", "16")) * 1024 * 1024)
+# Smaller pages = smaller, faster answers. Applied only when the caller didn't set them.
+SEARCH_DEFAULTS: dict[str, dict[str, int]] = {
+    "food_dish_search": {"limit": 6, "items_limit": 3},
+    "food_dynamic_search": {"limit": 6, "items_limit": 3},
+    "food_merchant_search": {"limit": 6},
+}
 READ_RETRIES = 2
 SANDBOX_HOME = (25.0866, 55.1474)  # sandbox persona's Home (Dubai Marina)
 
@@ -163,6 +171,9 @@ class CareemMCP:
     def _with_location(self, name: str, args: Optional[dict[str, Any]]) -> dict[str, Any]:
         args = dict(args or {})
         props = ((self._tools.get(name) or {}).get("inputSchema") or {}).get("properties") or {}
+        for k, v in SEARCH_DEFAULTS.get(name, {}).items():
+            if k in props:
+                args.setdefault(k, v)
         if ("latitude" in props or not self._tools) and "latitude" not in args:
             loc = self._demo_location()
             if loc:
@@ -293,7 +304,7 @@ class CareemMCP:
                     timeout=httpx2.Timeout(READ_TIMEOUT_S, read=300),
                     event_hooks={"request": [add_auth], "response": [watch_status]},
                 ))
-                read, write, *_ = await stack.enter_async_context(streamable_http_client(self.url, http_client=http))
+                read, write, *_ = await stack.enter_async_context(streamable_http_client(self.url, http_client=http, max_sse_event_size=MAX_EVENT_BYTES))
                 session = await stack.enter_async_context(ClientSession(read, write))
                 await session.initialize()
                 ready.set_result(session)
