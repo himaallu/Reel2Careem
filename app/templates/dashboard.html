@@ -50,8 +50,10 @@ nav { margin-left: auto; display: flex; gap: 4px; padding: 6px; border-radius: 9
 nav a { padding: 11px 24px; border-radius: 999px; color: var(--ink2); text-decoration: none; font-size: 15px; }
 nav a.on { background: var(--card2); color: var(--ink); box-shadow: inset 0 0 0 1px var(--stroke); }
 .status { display: flex; gap: 10px; }
-.status .round { position: relative; font-size: 18px; cursor: default; }
-.status .round i { position: absolute; right: 1px; top: 1px; width: 11px; height: 11px; border-radius: 50%; background: var(--muted); border: 2px solid var(--black); }
+.status .round { position: relative; cursor: default; color: var(--ink2); }
+.status .round svg { width: 20px; height: 20px; display: block; }
+.status .round.ok { color: var(--ink); }
+.status .round i { position: absolute; right: 0; top: 0; width: 12px; height: 12px; border-radius: 50%; background: var(--muted); border: 2px solid var(--black); }
 .status .round.ok i { background: var(--ok); box-shadow: 0 0 8px var(--ok); }
 .status .round.bad i { background: var(--bad); box-shadow: 0 0 8px var(--bad); }
 .modesel { height: 44px; border-radius: 999px; border: 1px solid var(--stroke); background: rgba(255,255,255,.04); padding: 0 16px; font-weight: 600; font-size: 13px; letter-spacing: .06em; }
@@ -268,13 +270,22 @@ const AVA = [S[0], S[2], S[1], S[3]];
 const avaColor = (name) => AVA[[...String(name)].reduce((a, ch) => a + ch.charCodeAt(0), 0) % AVA.length];
 
 /* ================================================================ HEADER */
+/* one consistent 24x24 line-icon set (stroke = currentColor) */
+const svg = (d) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
+const ICONS = {
+  instagram: svg('<rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"/>'),
+  bag: svg('<path d="M5 8h14l-1.2 11.2a2 2 0 0 1-2 1.8H8.2a2 2 0 0 1-2-1.8L5 8z"/><path d="M9 8V6.5a3 3 0 0 1 6 0V8"/>'),
+  spark: svg('<path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/><path d="M19 15.5l.7 1.8 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7z"/>'),
+  globe: svg('<circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3z"/>'),
+  chat: svg('<path d="M20 12a8 8 0 0 1-11.6 7.1L4 20l1-4.1A8 8 0 1 1 20 12z"/>'),
+};
 function renderStatus(h, mode, demoRows) {
   const c = h.components || {};
   const one = (icon, name, key) => { const v = c[key]; const cls = !v ? '' : v.ok ? 'ok' : 'bad';
-    return `<span class="round ${cls}" title="${esc(name + ': ' + (v ? v.detail : 'no data yet'))}">${icon}<i></i></span>`; };
+    return `<span class="round ${cls}" title="${esc(name + ': ' + (v ? v.detail : 'no data yet'))}">${ICONS[icon]}<i></i></span>`; };
   const poll = h.last_poll_s_ago;
-  $('status').innerHTML = one('📸', 'Instagram', 'instagram') + one('🛵', 'Careem', 'careem_mcp') + one('🧠', 'AI agent (Bedrock)', 'bedrock') + one('🌐', 'Tunnel', 'tunnel')
-    + `<span class="round ${poll == null ? '' : poll < 15 ? 'ok' : 'bad'}" title="Comment poller: ${poll == null ? 'off' : 'last poll ' + Math.round(poll) + ' s ago'}">💬<i></i></span>`;
+  $('status').innerHTML = one('instagram', 'Instagram', 'instagram') + one('bag', 'Careem', 'careem_mcp') + one('spark', 'AI agent (Bedrock)', 'bedrock') + one('globe', 'Tunnel', 'tunnel')
+    + `<span class="round ${poll == null ? '' : poll < 15 ? 'ok' : 'bad'}" title="Comment poller: ${poll == null ? 'off' : 'last poll ' + Math.round(poll) + ' s ago'}">${ICONS.chat}<i></i></span>`;
   $('modeSel').value = mode.agent_mode;
   $('demo').innerHTML = demoRows ? `<span class="demo" title="seed_dashboard.py rows — clear before the demo">demo data · ${demoRows}</span>` : '';
 }
