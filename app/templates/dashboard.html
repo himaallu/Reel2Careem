@@ -6,249 +6,230 @@
 <title>Careem Genie · Live</title>
 <link rel="icon" href="/static/genie_medallion.webp">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Marcellus&family=Inter:wght@400;500;600;700;800&family=Amiri:wght@700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Amiri:wght@700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <style>
+/* ================================================================ TOKENS (Careem green + gold, unchanged) */
 :root {
-  --black: #020604; --deep: #041a10; --veil: rgba(4, 22, 13, .62); --veil2: rgba(6, 30, 18, .78); --surface: #0b1a13;
+  --black: #020604; --surface: #0b1a13;
+  --card: rgba(10, 30, 20, .72); --card2: rgba(18, 44, 30, .78); --stroke: rgba(60, 227, 106, .13);
   --ink: #eefaf2; --ink2: #b9d4c3; --muted: #7f9c8b;
-  --careem: #3ce36a;                                  /* brand glow, decorative (logo, titles) */
-  --gold: #e8c26a; --line: rgba(60, 227, 106, .14); --goldline: rgba(232, 194, 106, .35);
-  --s1: #27A957; --s2: #4A90E2; --s3: #BD8628; --s4: #D0628C;   /* validated categorical (dark, surface #0b1a13) */
-  --track: rgba(238, 250, 242, .07);
+  --careem: #3ce36a; --gold: #e8c26a; --goldline: rgba(232, 194, 106, .35);
+  --s1: #27A957; --s2: #4A90E2; --s3: #BD8628; --s4: #D0628C;   /* categorical: green, blue, gold, rose */
   --ok: #3ce36a; --bad: #ff6b5e;
-  --gap: 12px;
-  --bg-blur: 14px;   /* background photo blur */
+  --r-xl: 30px; --r-lg: 22px; --gap: 20px;
+  --bg-blur: 14px;   /* background photo blur (0px = sharp) */
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; }
-body {
-  color: var(--ink); font: 14px/1.35 Inter, system-ui, sans-serif; overflow-x: hidden;
-  background: var(--black);
-}
-/* Background photo on its own layer so it can be blurred. Tune --bg-blur (0px = sharp). */
+body { color: var(--ink); font: 15px/1.4 Inter, system-ui, sans-serif; background: var(--black); overflow-x: hidden; }
+button, input, select { font: inherit; color: inherit; }
 .bg-photo, .bg-shade { position: fixed; inset: 0; pointer-events: none; z-index: -1; }
-.bg-photo {
-  background: url('/static/genie_night.webp') center 30% / cover no-repeat;
-  filter: blur(var(--bg-blur)) saturate(1.1);
-  transform: scale(1.08);              /* hide the soft, see-through edges a blur creates */
-}
-.bg-shade {
-  background:
+.bg-photo { background: url('/static/genie_night.webp') center 30% / cover no-repeat; filter: blur(var(--bg-blur)) saturate(1.1); transform: scale(1.08); }
+.bg-shade { background:
     radial-gradient(900px 520px at 85% 8%, rgba(60, 227, 106, .14), transparent 60%),
     radial-gradient(700px 500px at 0% 100%, rgba(232, 194, 106, .08), transparent 60%),
-    linear-gradient(180deg, rgba(2, 6, 4, .80) 0%, rgba(2, 10, 6, .90) 45%, rgba(2, 6, 4, .96) 100%);
-}
-body::before {   /* mashrabiya lattice */
-  content: ""; position: fixed; inset: 0; pointer-events: none; opacity: .07;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='64' viewBox='0 0 64 64'%3E%3Cg fill='none' stroke='%23e8c26a' stroke-width='1'%3E%3Cpath d='M32 4l8 20 20 8-20 8-8 20-8-20-20-8 20-8z'/%3E%3Cpath d='M0 0l12 12M64 0L52 12M0 64l12-12M64 64L52 52'/%3E%3Ccircle cx='32' cy='32' r='6'/%3E%3C/g%3E%3C/svg%3E");
-  background-size: 64px 64px;
-}
-body::after {   /* twinkle */
-  content: ""; position: fixed; inset: 0; pointer-events: none; opacity: .6;
-  background-image: radial-gradient(1.5px 1.5px at 14% 12%, #fff 50%, transparent 51%), radial-gradient(1px 1px at 37% 6%, #fff 50%, transparent 51%),
-    radial-gradient(1.5px 1.5px at 66% 15%, #ffe9b0 50%, transparent 51%), radial-gradient(1px 1px at 81% 4%, #fff 50%, transparent 51%),
-    radial-gradient(1px 1px at 52% 9%, #fff 50%, transparent 51%), radial-gradient(1px 1px at 93% 17%, #fff 50%, transparent 51%);
-  animation: twinkle 4s ease-in-out infinite alternate;
-}
-@keyframes twinkle { from { opacity: .25; } to { opacity: .7; } }
-.app { position: relative; z-index: 1; display: grid; gap: var(--gap); padding: 10px 18px 14px; min-height: 100vh;
-  grid-template-rows: 64px 268px 92px minmax(250px, 1fr) minmax(232px, .92fr); }
-@media (min-width: 1800px) and (min-height: 1000px) { .app { height: 100vh; } }
+    linear-gradient(180deg, rgba(2, 6, 4, .82) 0%, rgba(2, 10, 6, .9) 45%, rgba(2, 6, 4, .96) 100%); }
 
-/* ---------- header */
-header { display: flex; align-items: center; gap: 18px; }
-.brand { display: flex; align-items: center; gap: 14px; white-space: nowrap; }
-.medal { width: 58px; height: 58px; border-radius: 50%; background: url('/static/genie_medallion.webp') center/cover;
-  box-shadow: 0 0 0 2px var(--goldline), 0 0 24px rgba(60, 227, 106, .55); animation: float 4s ease-in-out infinite; }
-@keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
-.brand h1 { margin: 0; font: 400 31px/1 Marcellus, serif; letter-spacing: .4px;
-  background: linear-gradient(180deg, #b8ffcc, var(--careem) 70%); -webkit-background-clip: text; background-clip: text; color: transparent;
-  text-shadow: 0 0 28px rgba(60, 227, 106, .25); }
-.brand .ar { font: 700 24px/1 Amiri, serif; color: var(--gold); margin-left: 6px; -webkit-text-fill-color: var(--gold); }
-.brand small { display: block; color: var(--ink2); font-size: 12.5px; margin-top: 4px; letter-spacing: .3px; }
-.pills { display: flex; gap: 8px; flex-wrap: wrap; }
-.pill { display: inline-flex; align-items: center; gap: 6px; padding: 4px 11px; border-radius: 999px; font-size: 12.5px;
-  background: rgba(4, 22, 13, .55); color: var(--ink2); white-space: nowrap; backdrop-filter: blur(6px);
-  box-shadow: inset 0 0 0 1px var(--line); }
-.pill i { font-style: normal; font-weight: 800; }
-.pill.ok i { color: var(--ok); } .pill.bad i { color: var(--bad); } .pill.idle i { color: var(--muted); }
-.pill.bad { box-shadow: inset 0 0 0 1px rgba(255, 107, 94, .45); }
-.spacer { flex: 1; }
-.ctl { display: flex; align-items: center; gap: 10px; white-space: nowrap; color: var(--ink2); font-size: 12.5px; }
-.badge { padding: 2px 9px; border-radius: 999px; font: 700 10.5px/1.7 Inter; letter-spacing: .7px; text-transform: uppercase; }
-.b-demo { background: rgba(255, 107, 94, .16); color: #ffb3ab; box-shadow: inset 0 0 0 1px rgba(255, 107, 94, .45); }
-.b-mode { background: rgba(60, 227, 106, .14); color: #a9f7c2; box-shadow: inset 0 0 0 1px rgba(60, 227, 106, .4); }
-select, button { font: 600 13px Inter; color: var(--ink); background: rgba(4, 22, 13, .7); border: 0; border-radius: 999px; padding: 6px 14px;
-  cursor: pointer; box-shadow: inset 0 0 0 1px var(--goldline); }
-button:hover, select:hover { box-shadow: inset 0 0 0 1px var(--gold); }
-.clock { font: 400 24px Marcellus, serif; color: var(--gold); min-width: 86px; text-align: right; }
+.app { max-width: 1880px; margin: 0 auto; padding: 22px 34px 22px; display: grid; gap: 18px; }
+.card { background: var(--card); border: 1px solid var(--stroke); border-radius: var(--r-xl); padding: 22px 26px; backdrop-filter: blur(10px); min-width: 0; }
+.ctitle { display: flex; align-items: center; gap: 10px; font-size: 21px; font-weight: 400; margin: 0 0 14px; min-height: 40px; }
+.ctitle .sub { margin-left: auto; color: var(--muted); font-size: 13px; }
+.round { width: 44px; height: 44px; border-radius: 50%; border: 1px solid var(--stroke); background: rgba(255,255,255,.03);
+         display: grid; place-items: center; text-decoration: none; color: var(--ink); flex: none; }
 
-/* ---------- arched windows (top band) */
-.top { display: grid; grid-template-columns: 1.6fr 1fr; gap: 18px; min-height: 0; }
-.arch { position: relative; min-height: 0; padding: 34px 22px 14px; overflow: hidden;
-  border-radius: 46% 46% 22px 22px / 70px 70px 22px 22px;
-  background: linear-gradient(180deg, rgba(6, 36, 21, .82), rgba(3, 14, 8, .78));
-  box-shadow: inset 0 0 0 1px var(--goldline), inset 0 2px 30px rgba(60, 227, 106, .12), 0 18px 40px rgba(0, 0, 0, .45);
-  backdrop-filter: blur(8px); }
-.arch::after { content: "✦"; position: absolute; top: 8px; left: 50%; transform: translateX(-50%); color: var(--gold); font-size: 13px; opacity: .85; }
-.atitle { position: absolute; top: 26px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 10px;
-  font: 400 18px Marcellus, serif; color: var(--gold); letter-spacing: 1.4px; text-transform: uppercase; pointer-events: none; }
-.asub { display: none; }
-.atitle .st { font: 500 11.5px Inter; color: var(--muted); letter-spacing: .3px; text-transform: none; margin-left: 2px; }
-.live-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--careem); box-shadow: 0 0 10px var(--careem); animation: pulse 1.6s infinite; align-self: center; }
-@keyframes pulse { 50% { opacity: .35; } }
-.feed { display: flex; gap: 12px; height: 100%; padding-top: 30px; }
-.card { flex: 1 1 0; min-width: 0; border-radius: 16px; padding: 11px 13px; display: flex; flex-direction: column; gap: 4px;
-  background: linear-gradient(180deg, rgba(60, 227, 106, .07), rgba(2, 10, 6, .35)); box-shadow: inset 0 0 0 1px var(--line);
-  font-size: 12.5px; overflow: hidden; animation: rise .55s ease; }
-.card.new { box-shadow: inset 0 0 0 1px rgba(60, 227, 106, .55), 0 0 22px rgba(60, 227, 106, .18); }
-@keyframes rise { from { opacity: 0; transform: translateY(8px) scale(.98); } to { opacity: 1; transform: none; } }
-.card .top1 { display: flex; align-items: center; gap: 6px; color: var(--muted); white-space: nowrap; min-width: 0; }
-.card .who { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
-.card .q { font: 700 17px/1.25 Inter; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.card .cap { color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.card .hit { color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.card .hit b { color: #b8ffcc; }
-.card .dm { margin-top: auto; color: var(--ink2); background: rgba(74, 144, 226, .12); border-radius: 10px; padding: 5px 9px;
-  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; line-height: 1.35; }
-.stg { margin-left: auto; font: 700 10px Inter; letter-spacing: .6px; text-transform: uppercase; padding: 2px 8px; border-radius: 999px;
-  color: var(--ink2); box-shadow: inset 0 0 0 1px var(--line); }
-.stg.ordered { color: #2a1a00; background: var(--gold); box-shadow: 0 0 14px rgba(232, 194, 106, .5); }
-.mode { font: 700 9.5px Inter; letter-spacing: .6px; text-transform: uppercase; padding: 1px 6px; border-radius: 4px; color: #04140b; }
-.mind { font: 12.5px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; height: 100%; padding-top: 30px; overflow: hidden;
-  -webkit-mask-image: linear-gradient(180deg, #000 70%, transparent); mask-image: linear-gradient(180deg, #000 70%, transparent); }
-.mind div { display: grid; grid-template-columns: 62px 22px 1fr; gap: 6px; white-space: nowrap; overflow: hidden; animation: rise .4s ease; }
-.mind .t { color: var(--muted); } .mind .x { color: var(--ink2); overflow: hidden; text-overflow: ellipsis; } .mind .x b { color: var(--ink); }
-.mind-genie { width: 30px; height: 30px; border-radius: 50%; flex: none;
-  background: url('/static/genie_medallion.webp') center/cover; box-shadow: 0 0 0 1px var(--goldline), 0 0 16px rgba(60, 227, 106, .5);
-  animation: float 3s ease-in-out infinite; }
-.waiting { color: var(--muted); align-self: center; margin: auto; font: 400 16px Marcellus, serif; letter-spacing: .5px; }
+/* ================================================================ HEADER */
+header { display: flex; align-items: center; gap: 22px; }
+.brand { display: flex; align-items: center; gap: 12px; font-size: 26px; font-weight: 600; letter-spacing: -.01em; }
+.brand .ar { font: 700 20px Amiri, serif; color: var(--gold); }
+.medal { width: 46px; height: 46px; border-radius: 50%; background: url('/static/genie_medallion.webp') center/cover; box-shadow: 0 0 0 1px var(--goldline), 0 0 18px rgba(60,227,106,.35); }
+nav { margin-left: auto; display: flex; gap: 4px; padding: 6px; border-radius: 999px; background: rgba(255,255,255,.04); border: 1px solid var(--stroke); }
+nav a { padding: 11px 24px; border-radius: 999px; color: var(--ink2); text-decoration: none; font-size: 15px; }
+nav a.on { background: var(--card2); color: var(--ink); box-shadow: inset 0 0 0 1px var(--stroke); }
+.status { display: flex; gap: 10px; }
+.status .round { position: relative; font-size: 18px; cursor: default; }
+.status .round i { position: absolute; right: 1px; top: 1px; width: 11px; height: 11px; border-radius: 50%; background: var(--muted); border: 2px solid var(--black); }
+.status .round.ok i { background: var(--ok); box-shadow: 0 0 8px var(--ok); }
+.status .round.bad i { background: var(--bad); box-shadow: 0 0 8px var(--bad); }
+.modesel { height: 44px; border-radius: 999px; border: 1px solid var(--stroke); background: rgba(255,255,255,.04); padding: 0 16px; font-weight: 600; font-size: 13px; letter-spacing: .06em; }
+.modesel option { background: var(--surface); }
+.clock { font-weight: 300; font-size: 24px; color: var(--ink2); font-variant-numeric: tabular-nums; }
 
-/* ---------- KPI ribbon */
-.ribbon { display: flex; align-items: stretch; border-radius: 999px; padding: 0 30px; min-height: 0;
-  background: linear-gradient(90deg, rgba(4, 22, 13, .2), var(--veil2) 12%, var(--veil2) 88%, rgba(4, 22, 13, .2));
-  box-shadow: inset 0 1px 0 var(--goldline), inset 0 -1px 0 var(--goldline); backdrop-filter: blur(8px); }
-.kpi { flex: 1; display: flex; flex-direction: column; justify-content: center; padding: 0 16px; position: relative; min-width: 0; }
-.kpi + .kpi::before { content: "✦"; position: absolute; left: -6px; top: 50%; transform: translateY(-50%); color: var(--gold); opacity: .55; font-size: 11px; }
-.kpi .k { font: 600 11px Inter; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); white-space: nowrap; }
-.kpi .v { font: 800 30px/1.1 Inter; letter-spacing: -.5px; color: var(--ink); font-variant-numeric: tabular-nums; white-space: nowrap; }
-.kpi .v small { font-size: 14px; font-weight: 700; color: var(--ink2); margin-left: 3px; }
-.kpi .d { font-size: 11.5px; color: var(--ink2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.kpi.hero { flex: 1.25; }
-.kpi.hero .v { font-size: 36px; background: linear-gradient(180deg, #ffe7a3, var(--gold)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+/* ================================================================ HERO */
+.hero { display: grid; grid-template-columns: 1fr auto; align-items: end; gap: 30px; padding: 6px 4px 0; }
+.hero h2 { margin: 0 0 16px; font-size: 44px; font-weight: 400; letter-spacing: -.02em; }
+.hero h2 span { color: var(--careem); }
+.rates { display: flex; gap: 14px; align-items: flex-end; }
+.rate { display: grid; gap: 10px; }
+.rate label { color: var(--ink2); font-size: 15px; padding-left: 6px; white-space: nowrap; }
+.rate .bar { height: 44px; border-radius: 999px; display: flex; align-items: center; padding: 0 20px; font-size: 18px; font-weight: 500; min-width: 120px; }
+.rate.r1 .bar { background: var(--s1); color: #04140b; }
+.rate.r2 .bar { background: #eefaf2; color: #082414; }
+.rate.r3 .bar { background: rgba(255,255,255,.08); }
+.rate.r4 .bar { background: repeating-linear-gradient(-45deg, rgba(232,194,106,.22) 0 2px, transparent 2px 10px); box-shadow: inset 0 0 0 1px var(--goldline); color: var(--gold); }
+.bigs { display: flex; gap: 46px; }
+.big { display: grid; justify-items: end; gap: 4px; }
+.big .row { display: flex; align-items: center; gap: 14px; }
+.big .v { font-size: 66px; font-weight: 300; line-height: 1; letter-spacing: -.03em; font-variant-numeric: tabular-nums; }
+.big .v small { font-size: 26px; color: var(--ink2); margin-left: 4px; }
+.big .l { color: var(--ink2); font-size: 16px; }
+.badge { position: relative; width: 60px; height: 60px; border-radius: 50%; background: #eefaf2; color: #082414; display: grid; place-items: center;
+         font-size: 15px; font-weight: 600; text-align: center; line-height: 1; letter-spacing: -.02em; }
+.badge::before { content: attr(data-arrow); position: absolute; left: -4px; top: -6px; width: 24px; height: 24px; border-radius: 50%;
+                 display: grid; place-items: center; font-size: 12px; color: #04140b; background: var(--careem); border: 3px solid var(--black); }
+.badge.gold::before { background: var(--gold); }
 
-/* ---------- floating panels */
-.row { display: grid; gap: 16px; min-height: 0; }
-.panel { position: relative; min-height: 0; overflow: hidden; padding: 14px 18px; border-radius: 22px;
-  background: linear-gradient(180deg, var(--veil), rgba(2, 10, 6, .5)); backdrop-filter: blur(8px);
-  box-shadow: 0 14px 34px rgba(0, 0, 0, .35); }
-.panel::before { content: ""; position: absolute; left: 22px; right: 22px; top: 0; height: 1px;
-  background: linear-gradient(90deg, transparent, var(--gold), transparent); opacity: .55; }
-.ptitle { display: flex; align-items: baseline; gap: 8px; margin: 0 0 10px; font: 400 15px Marcellus, serif; color: var(--gold);
-  letter-spacing: .8px; text-transform: uppercase; }
-.ptitle::before { content: "✦"; font-size: 10px; opacity: .8; }
-.ptitle .sub { font: 500 12px Inter; color: var(--muted); text-transform: none; letter-spacing: 0; margin-left: auto; }
-.minih { font: 600 10.5px Inter; letter-spacing: .8px; text-transform: uppercase; color: var(--muted); margin: 10px 0 6px; }
+/* ================================================================ MIDDLE ROW */
+.mid { display: grid; grid-template-columns: 380px 1fr 400px; gap: var(--gap); }
+.sum { display: grid; gap: 12px; }
+.sum .item { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-radius: 18px; background: rgba(255,255,255,.035); border: 1px solid var(--stroke); font-size: 17px; }
+.sum .item i { width: 9px; height: 9px; border-radius: 50%; }
+.sum .item b { margin-left: auto; font-weight: 500; padding: 5px 13px; border-radius: 999px; background: rgba(255,255,255,.07); font-variant-numeric: tabular-nums; }
+.insight { display: flex; gap: 12px; margin-top: 18px; color: var(--muted); font-size: 13.5px; line-height: 1.45; }
+.insight b { color: var(--ink); font-weight: 500; }
+.insight .ic { width: 30px; height: 30px; border-radius: 50%; background: rgba(232,194,106,.14); display: grid; place-items: center; flex: none; }
+.seg { margin-left: auto; display: flex; gap: 2px; padding: 4px; border-radius: 999px; border: 1px solid var(--stroke); }
+.seg button { border: 0; background: none; padding: 8px 18px; border-radius: 999px; color: var(--ink2); cursor: pointer; font-size: 14px; }
+.seg button.on { background: var(--card2); color: var(--ink); box-shadow: inset 0 0 0 1px var(--stroke); }
+.chartbox { position: relative; height: 228px; }
+.legend { display: flex; gap: 18px; color: var(--ink2); font-size: 13px; margin: -8px 0 10px; }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; }
 
-/* funnel */
-.funnel { display: flex; flex-direction: column; gap: 2px; }
-.fstep { display: grid; grid-template-columns: 140px 1fr 46px; align-items: center; gap: 10px; }
-.fstep .nm { color: var(--ink2); font-size: 13px; }
-.fbar { height: 18px; background: var(--track); border-radius: 999px; overflow: hidden; }
-.fbar > div { height: 100%; background: linear-gradient(90deg, #1d8f48, var(--s1)); border-radius: 999px; min-width: 3px;
-  box-shadow: 0 0 12px rgba(39, 169, 87, .35); }
-.fstep .n { text-align: right; font: 800 15px Inter; font-variant-numeric: tabular-nums; }
-.fconv { margin-left: 150px; font-size: 11px; color: var(--muted); height: 14px; }
-.fconv b { color: var(--ink2); }
+.hl { background: linear-gradient(160deg, #2fc46a 0%, #1c9a4f 55%, #127a3c 100%); border: 0; color: #04140b; position: relative; overflow: hidden; }
+.hl .ctitle { color: #04140b; font-weight: 600; }
+.hl .ctitle .round { margin-left: auto; background: rgba(255,255,255,.25); border: 0; color: #04140b; }
+.hl p { font-size: 18px; line-height: 1.45; margin: 0; color: #062a15; max-width: 330px; }
+.hl p b { font-weight: 700; }
+.stack { position: absolute; left: 26px; right: 26px; bottom: 24px; height: 140px; }
+.stack .tile { position: absolute; left: 0; right: 0; height: 66px; border-radius: 16px; display: flex; align-items: center; padding: 0 18px; font-size: 17px; color: #082414;
+               box-shadow: 0 10px 24px rgba(0,0,0,.18); }
+.stack .tile b { margin-left: auto; width: 34px; height: 34px; border-radius: 50%; background: #04140b; color: #eefaf2; display: grid; place-items: center; font-size: 14px; font-weight: 600; }
+.stack .t1 { top: 0; background: #f4fff8; transform: rotate(-3deg); z-index: 2; }
+.stack .t2 { top: 72px; background: #d8f5e3; transform: rotate(2deg); }
+.stack .tile span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 250px; }
 
-/* part-to-whole + meters */
-.mix { display: flex; flex-direction: column; gap: 12px; }
-.mix h4 { margin: 0 0 6px; font: 600 10.5px Inter; color: var(--muted); text-transform: uppercase; letter-spacing: .8px; }
-.seg { display: flex; gap: 2px; height: 14px; border-radius: 999px; overflow: hidden; background: var(--surface); }
-.seg > div { height: 100%; min-width: 3px; }
-.legend { display: flex; flex-wrap: wrap; gap: 3px 14px; margin-top: 6px; font-size: 12.5px; color: var(--ink2); }
-.legend span { display: inline-flex; align-items: center; gap: 6px; }
-.sw { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
-.legend b { color: var(--ink); font-variant-numeric: tabular-nums; }
-.meters { display: flex; flex-direction: column; gap: 7px; }
-.meter { display: grid; grid-template-columns: minmax(0, 1.3fr) 1fr auto; gap: 10px; align-items: center; font-size: 13px; }
-.meter .nm { color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.meter .trk { height: 7px; background: var(--track); border-radius: 999px; overflow: hidden; }
-.meter .trk > div { height: 100%; border-radius: 999px; }
-.meter .val { font-variant-numeric: tabular-nums; color: var(--ink2); white-space: nowrap; text-align: right; min-width: 92px; }
-.meter .val b { color: var(--ink); }
-.empty { color: var(--muted); font-size: 13px; padding: 4px 0; }
-table { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
-th { text-align: right; font: 600 10.5px Inter; letter-spacing: .8px; text-transform: uppercase; color: var(--muted); padding: 0 6px 6px; }
-td { text-align: right; padding: 6px; color: var(--ink2); border-top: 1px solid rgba(60, 227, 106, .07); }
-th:first-child, td:first-child { text-align: left; }
-td:first-child { color: var(--ink); max-width: 220px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-td .cv { display: inline-block; width: 54px; height: 6px; border-radius: 999px; background: var(--track); vertical-align: middle; margin-right: 6px; overflow: hidden; }
-td .cv > i { display: block; height: 100%; background: var(--s1); border-radius: 999px; }
-.rank { display: inline-grid; place-items: center; width: 20px; height: 20px; margin-right: 8px; border-radius: 50%; font: 400 12px Marcellus, serif;
-  color: var(--gold); box-shadow: inset 0 0 0 1px var(--goldline); }
-tr:nth-child(2) .rank { background: var(--gold); color: #2a1a00; }
+/* ================================================================ BOTTOM ROW */
+.bot { display: grid; grid-template-columns: 1.55fr 420px 1fr; gap: var(--gap); }
+.filters { margin-left: auto; display: flex; gap: 8px; }
+.filters select { height: 40px; border-radius: 999px; border: 1px solid var(--stroke); background: rgba(255,255,255,.04); padding: 0 14px; font-size: 14px; }
+.filters select option { background: var(--surface); }
+.wishes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+.wish { border-radius: var(--r-lg); background: rgba(255,255,255,.035); border: 1px solid var(--stroke); padding: 16px; display: flex; flex-direction: column; gap: 10px; height: 232px; animation: rise .5s ease-out; }
+.wish.new { box-shadow: 0 0 0 1px var(--careem), 0 0 24px rgba(60,227,106,.25); }
+@keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+.wish .top { display: flex; align-items: flex-start; gap: 8px; }
+.tag { padding: 8px 14px; border-radius: 999px; font-size: 13px; font-weight: 600; white-space: nowrap; }
+.tag.dm { background: #eefaf2; color: #082414; }
+.tag.opened { background: var(--s2); color: #fff; }
+.tag.ordered { background: var(--gold); color: #2a1a00; }
+.tag.closest { background: rgba(232,194,106,.16); color: var(--gold); box-shadow: inset 0 0 0 1px var(--goldline); }
+.tag.none { background: rgba(208,98,140,.18); color: #f3a6c4; }
+.tag.wip, .tag.noreply { background: rgba(255,255,255,.08); color: var(--ink2); }
+.wish .when { margin-left: auto; text-align: right; color: var(--ink2); font-size: 13px; line-height: 1.35; }
+.wish .when .m { display: inline-block; margin-top: 3px; font-size: 10px; font-weight: 700; letter-spacing: .08em; padding: 2px 7px; border-radius: 6px; color: #04140b; }
+.wish .story { font-size: 14.5px; line-height: 1.4; color: var(--ink); display: grid; gap: 6px; }
+.wish .story > div { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.wish .story .dim { color: var(--ink2); }
+.wish .story .dish { color: var(--careem); font-weight: 600; }
+.wish .who { margin-top: auto; display: flex; align-items: center; gap: 12px; }
+.ava { width: 42px; height: 42px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; color: #04140b; flex: none; }
+.wish .who b { display: block; font-weight: 500; font-size: 15px; }
+.wish .who small { color: var(--muted); font-size: 13px; }
+.waiting { grid-column: 1 / -1; color: var(--ink2); padding: 40px 0; text-align: center; }
 
-/* simulate popover */
-#sim { position: absolute; right: 18px; top: 70px; z-index: 30; width: 370px; display: none; flex-direction: column; gap: 8px; }
-#sim.open { display: flex; }
-#sim input, #sim select { width: 100%; border-radius: 10px; font: 13px Inter; padding: 8px 10px; }
+.bubbles { position: relative; height: 232px; }
+.bub { position: absolute; border-radius: 50%; display: grid; place-items: center; text-align: center; color: #fff; transition: all .6s; }
+.bub b { display: block; font-weight: 400; letter-spacing: -.02em; }
+.bub small { display: block; font-size: 14px; opacity: .9; }
+.bub.hatch { background: repeating-linear-gradient(-45deg, rgba(255,255,255,.14) 0 2px, transparent 2px 9px) !important; box-shadow: inset 0 0 0 1px rgba(255,255,255,.25); }
+
+.mind h3 { margin: 0; font-size: 22px; font-weight: 400; display: flex; align-items: center; gap: 10px; }
+.mind h4 { margin: 2px 0 12px; font-size: 23px; font-weight: 500; }
+.mind .st { margin-left: auto; color: var(--muted); font-size: 12px; font-weight: 400; }
+.stream { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.ev { border-radius: 16px; border: 1px solid var(--stroke); background: rgba(255,255,255,.035); padding: 10px 12px; font-size: 13px; line-height: 1.35; min-height: 66px; animation: rise .4s ease-out; }
+.ev .h { display: flex; gap: 8px; align-items: center; color: var(--ink); font-weight: 600; font-size: 13.5px; margin-bottom: 4px; }
+.ev .h .ic { width: 24px; height: 24px; border-radius: 8px; display: grid; place-items: center; background: rgba(60,227,106,.14); font-size: 13px; }
+.ev .h .t { margin-left: auto; color: var(--muted); font-weight: 400; font-size: 11.5px; font-variant-numeric: tabular-nums; }
+.ev .x { color: var(--ink2); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; word-break: break-word; }
+.wishbox { margin-top: 12px; display: flex; align-items: center; gap: 10px; height: 48px; border-radius: 999px; background: rgba(255,255,255,.05); border: 1px solid var(--stroke); padding: 0 8px 0 22px; }
+.wishbox input { flex: 1; background: none; border: 0; outline: none; font-size: 15px; }
+.wishbox input::placeholder { color: var(--muted); }
+.wishbox button { width: 40px; height: 40px; border-radius: 50%; border: 0; background: var(--careem); color: #04140b; cursor: pointer; font-size: 17px; }
+.simmsg { color: var(--muted); font-size: 12px; margin: 8px 0 0 22px; min-height: 16px; }
+.demo { font-size: 11px; font-weight: 700; padding: 6px 12px; border-radius: 999px; background: rgba(255,107,94,.16); color: #ffb3ab; }
 </style>
 </head>
 <body>
 <div class="bg-photo"></div><div class="bg-shade"></div>
 <div class="app">
+
+  <!-- ============================================================ HEADER -->
   <header>
-    <div class="brand">
-      <div class="medal" role="img" aria-label="Careem Genie"></div>
-      <div><h1>Careem Genie <span class="ar">جني كريم</span></h1><small>Your wish, from a reel to a Careem order — live</small></div>
-    </div>
-    <div class="pills" id="pills"></div>
-    <div class="spacer"></div>
-    <div class="ctl">
-      <span id="demo"></span>
-      Agent <select id="modeSel" title="Agent mode">
-        <option value="live">LIVE</option><option value="cached">CACHED</option><option value="scripted">SCRIPTED</option>
-      </select>
-      Orders <span class="badge b-mode" id="orderMode">—</span>
-      <button id="simBtn" title="Inject a test signal">✨ Simulate</button>
-      <span class="clock" id="clock">--:--</span>
-    </div>
+    <div class="brand"><div class="medal" role="img" aria-label="Careem Genie"></div>Careem Genie <span class="ar">جني كريم</span></div>
+    <nav>
+      <a class="on" href="#">Overview</a><a href="#wishes">Wishes</a><a href="#insights">Insights</a><a href="#mind">Genie's mind</a><a href="/dashboard/classic">Classic</a>
+    </nav>
+    <span id="demo"></span>
+    <div class="status" id="status"></div>
+    <select class="modesel" id="modeSel" title="Agent mode"><option value="live">LIVE</option><option value="cached">CACHED</option><option value="scripted">SCRIPTED</option></select>
+    <span class="clock" id="clock">--:--</span>
   </header>
 
-  <form class="panel" id="sim">
-    <div class="ptitle">Make a wish <span class="sub">simulated · not sent to Instagram</span></div>
-    <select name="kind"><option value="comment">Comment on a collab post</option><option value="dm_share">Reel shared in DM</option></select>
-    <input name="text" placeholder="Comment, e.g. b kam?">
-    <input name="caption" placeholder="Caption, e.g. Crispy chicken shawarma 📍 Operation Falafel">
-    <input name="user" placeholder="Username (optional)">
-    <div style="display:flex;gap:8px;align-items:center"><button type="submit">Send</button><span id="simMsg" style="color:var(--muted);font-size:12px"></span></div>
-  </form>
-
-  <section class="top">
-    <div class="arch">
-      <div class="atitle"><span class="live-dot"></span>Live wishes</div><span class="asub" id="feedSub"></span>
-      <div class="feed" id="feed"></div>
+  <!-- ============================================================ HERO -->
+  <section class="hero">
+    <div>
+      <h2>From reels to <span>Careem orders</span></h2>
+      <div class="rates" id="rates"></div>
     </div>
-    <div class="arch">
-      <div class="atitle"><span class="mind-genie"></span>Genie's mind <span class="st" id="sse">connecting…</span></div>
-      <div class="mind" id="mind"></div>
+    <div class="bigs" id="bigs"></div>
+  </section>
+
+  <!-- ============================================================ MIDDLE -->
+  <section class="mid" id="insights">
+    <div class="card">
+      <div class="ctitle">Summary</div>
+      <div class="sum" id="sum"></div>
+      <div class="insight" id="insight"></div>
+    </div>
+    <div class="card">
+      <div class="ctitle">Wishes over time
+        <div class="seg" id="range"><button data-n="0" class="on">Today</button><button data-n="8">Last 2 h</button><button data-n="2">Last 30 min</button></div>
+      </div>
+      <div class="legend"><span><i style="background:var(--s1)"></i>Wishes</span><span><i style="background:var(--s2)"></i>DMs sent</span><span><i style="background:var(--gold)"></i>Orders</span></div>
+      <div class="chartbox"><canvas id="act"></canvas></div>
+    </div>
+    <div class="card hl">
+      <div class="ctitle">Most wanted <a class="round" href="/dashboard/classic" title="Open classic view">↗</a></div>
+      <p id="hlText">Waiting for the first wish…</p>
+      <div class="stack" id="hlStack"></div>
     </div>
   </section>
 
-  <section class="ribbon" id="kpis"></section>
-
-  <section class="row" style="grid-template-columns: 1fr 1.45fr 1fr;">
-    <div class="panel"><div class="ptitle">Conversion funnel <span class="sub" id="funnelSub"></span></div><div class="funnel" id="funnel"></div></div>
-    <div class="panel"><div class="ptitle">Activity <span class="sub" id="actSub"></span></div><div style="position:relative;height:calc(100% - 30px)"><canvas id="act"></canvas></div></div>
-    <div class="panel"><div class="ptitle">The mix</div><div class="mix" id="mix"></div></div>
-  </section>
-
-  <section class="row" style="grid-template-columns: 1.15fr 1fr 1fr;">
-    <div class="panel"><div class="ptitle">Creators who sell <span class="sub">signals → orders</span></div><div id="creators"></div></div>
-    <div class="panel"><div class="ptitle">Where orders go <span class="sub">by restaurant area</span></div><div id="areas"></div></div>
-    <div class="panel"><div class="ptitle">Demand <span class="sub">wanted vs not on Careem yet</span></div><div id="demand"></div></div>
+  <!-- ============================================================ BOTTOM -->
+  <section class="bot">
+    <div class="card" id="wishes">
+      <div class="ctitle">Live wishes
+        <div class="filters">
+          <select id="fStage"><option value="all">All</option><option value="dm">DM sent</option><option value="opened">Link opened</option><option value="ordered">Ordered</option><option value="not found">Not on Careem</option></select>
+        </div>
+      </div>
+      <div class="wishes" id="feed"></div>
+    </div>
+    <div class="card">
+      <div class="ctitle">How Genie answered <span class="sub" id="bubSub"></span></div>
+      <div class="bubbles" id="bubbles"></div>
+    </div>
+    <div class="card mind" id="mind">
+      <h3>Hi, I'm Genie 🧞 <span class="st" id="sse">connecting…</span></h3>
+      <h4>Here's what I'm doing</h4>
+      <div class="stream" id="stream"></div>
+      <form class="wishbox" id="sim" autocomplete="off">
+        <input name="text" placeholder="Make a wish… try “b kam?” (simulated)">
+        <button title="Send a simulated comment">✦</button>
+      </form>
+      <div class="simmsg" id="simMsg"></div>
+    </div>
   </section>
 </div>
 
@@ -257,169 +238,212 @@ const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
 const S = [css('--s1'), css('--s2'), css('--s3'), css('--s4')];
-const MODE_COLOR = { live: S[0], cached: S[1], rules: S[2], scripted: S[3] };            // fixed per entity
-const LANG_COLOR = { 'English': S[0], 'Arabic': S[1], 'Franco-Arabic': S[2], 'Emoji only': S[3] };
+const MODE_COLOR = { live: S[0], cached: S[1], rules: S[2], scripted: S[3] };
 const fmt = (n) => n == null ? '—' : Number(n).toLocaleString('en-US');
-const pct = (n) => n == null ? '—' : `${n}%`;
+const pct = (n) => n == null ? '—' : `${Math.round(n)}%`;
 const aed = (n) => n == null ? '—' : Number(n).toLocaleString('en-US', { maximumFractionDigits: 0 });
-const secs = (ms) => ms == null ? '—' : (ms / 1000).toFixed(1) + ' s';
-const dubai = (iso) => iso ? new Date(iso).toLocaleTimeString('en-GB', { timeZone: 'Asia/Dubai', hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '';
+const secs = (ms) => ms == null ? '—' : (ms / 1000).toFixed(ms < 10000 ? 1 : 0);
+const dubai = (iso, sec) => iso ? new Date(iso).toLocaleTimeString('en-GB', { timeZone: 'Asia/Dubai', hour: '2-digit', minute: '2-digit', ...(sec ? { second: '2-digit' } : {}) }) : '';
+const ago = (iso) => { const s = Math.max(0, (Date.now() - new Date(iso)) / 1000); return s < 60 ? 'just now' : s < 3600 ? `${Math.floor(s / 60)} min ago` : `${Math.floor(s / 3600)} h ago`; };
 const parse = (d) => { if (typeof d !== 'string') return d || {}; try { return JSON.parse(d); } catch { return { text: d }; } };
 setInterval(() => $('clock').textContent = new Date().toLocaleTimeString('en-GB', { timeZone: 'Asia/Dubai', hour: '2-digit', minute: '2-digit' }), 1000);
 
-function renderHealth(h, mode, demoRows) {
+/* clean a caption into a short human label: drop pasted headings, hashtags, keep first meaningful line */
+function shortCaption(c) {
+  if (!c) return '';
+  const lines = c.split('\n').map(l => l.trim()).filter(l => l && !/^caption\b.*:$/i.test(l) && !/^caption \(/i.test(l) && !l.startsWith('#'));
+  const first = (lines[0] || '').replace(/\s+/g, ' ');
+  return first.length > 46 ? first.slice(0, 44).trim() + '…' : first;
+}
+const handle = (r) => '@' + (r.username || r.user || 'someone');
+const AVA = [S[0], S[2], S[1], S[3]];
+const avaColor = (name) => AVA[[...String(name)].reduce((a, ch) => a + ch.charCodeAt(0), 0) % AVA.length];
+
+/* ================================================================ HEADER */
+function renderStatus(h, mode, demoRows) {
   const c = h.components || {};
-  const pill = (name, key) => { const v = c[key]; const cls = !v ? 'idle' : v.ok ? 'ok' : 'bad';
-    return `<span class="pill ${cls}" title="${esc(v ? v.detail : 'no data yet')}"><i>${!v ? '·' : v.ok ? '✓' : '✕'}</i>${name}</span>`; };
+  const one = (icon, name, key) => { const v = c[key]; const cls = !v ? '' : v.ok ? 'ok' : 'bad';
+    return `<span class="round ${cls}" title="${esc(name + ': ' + (v ? v.detail : 'no data yet'))}">${icon}<i></i></span>`; };
   const poll = h.last_poll_s_ago;
-  $('pills').innerHTML = pill('Instagram', 'instagram') + pill('Careem', 'careem_mcp') + pill('Bedrock', 'bedrock') + pill('Tunnel', 'tunnel')
-    + `<span class="pill ${poll == null ? 'idle' : poll < 15 ? 'ok' : 'bad'}"><i>${poll == null ? '·' : poll < 15 ? '✓' : '✕'}</i>${poll == null ? 'poll off' : 'poll ' + Math.round(poll) + 's'}</span>`;
-  $('modeSel').value = mode.agent_mode; $('orderMode').textContent = mode.order_mode;
-  $('demo').innerHTML = demoRows ? `<span class="badge b-demo" title="seed_dashboard.py rows — run it with --clear before the demo">demo data · ${demoRows}</span>` : '';
+  $('status').innerHTML = one('📸', 'Instagram', 'instagram') + one('🛵', 'Careem', 'careem_mcp') + one('🧠', 'AI agent (Bedrock)', 'bedrock') + one('🌐', 'Tunnel', 'tunnel')
+    + `<span class="round ${poll == null ? '' : poll < 15 ? 'ok' : 'bad'}" title="Comment poller: ${poll == null ? 'off' : 'last poll ' + Math.round(poll) + ' s ago'}">💬<i></i></span>`;
+  $('modeSel').value = mode.agent_mode;
+  $('demo').innerHTML = demoRows ? `<span class="demo" title="seed_dashboard.py rows — clear before the demo">demo data · ${demoRows}</span>` : '';
 }
 
-function renderKpis(k) {
-  const t = (label, value, detail, hero) => `<div class="kpi${hero ? ' hero' : ''}"><div class="k">${label}</div><div class="v">${value}</div><div class="d">${detail}</div></div>`;
-  $('kpis').innerHTML =
-    t('Signals', fmt(k.signals), `${fmt(k.creators)} creators · ${fmt(k.restaurants)} restaurants`) +
-    t('Buying intent', pct(k.intent_rate), `${fmt(k.buying)} of ${fmt(k.signals)} want it`) +
-    t('Found on Careem', pct(k.match_rate), `${fmt(k.matched)} dishes matched`) +
-    t('DMs sent', fmt(k.dms), `median ${secs(k.e2e_p50_ms)} to reply`) +
-    t('Link opened', pct(k.open_rate), `${fmt(k.opens)} opened the link`) +
-    t('Orders', fmt(k.orders), `${pct(k.order_rate)} of opens ordered`) +
-    t('Order value', `${aed(k.gmv)}<small>AED</small>`, `avg basket ${k.aov == null ? '—' : 'AED ' + aed(k.aov)}`, true) +
-    t('Reel → order', pct(k.conversion), 'signals that became orders');
+/* ================================================================ HERO */
+function lastVsPrev(arr, n) {   // sum of the last n buckets vs the n before
+  const a = arr.slice(-n).reduce((x, y) => x + y, 0), b = arr.slice(-2 * n, -n).reduce((x, y) => x + y, 0);
+  return a - b;
+}
+function renderHero(k, tl) {
+  const rate = (cls, label, v) => `<div class="rate ${cls}"><label>${label}</label><div class="bar" style="width:${120 + Math.round((v || 0) * 1.6)}px">${pct(v)}</div></div>`;
+  $('rates').innerHTML = rate('r1', 'Want to buy', k.intent_rate) + rate('r2', 'Found on Careem', k.match_rate) + rate('r3', 'Opened the link', k.open_rate) + rate('r4', 'Ordered', k.order_rate);
+  const perHour = Math.max(1, Math.round(60 / (tl.step_min || 15)));
+  const dOrders = lastVsPrev(tl.orders || [], perHour);
+  const big = (v, label, badge, arrow, gold, tip) => `<div class="big" title="${esc(tip)}"><div class="row"><span class="badge${gold ? ' gold' : ''}" data-arrow="${arrow}">${badge}</span><span class="v">${v}</span></div><span class="l">${label}</span></div>`;
+  $('bigs').innerHTML =
+    big(fmt(k.orders), `Orders · ${dOrders >= 0 ? '+' : ''}${dOrders} in the last hour`, `${dOrders >= 0 ? '+' : ''}${dOrders}`, dOrders >= 0 ? '↗' : '↘', false, 'Orders, and the change vs the hour before') +
+    big(`${aed(k.gmv)}<small>AED</small>`, `Order value · avg ${k.aov == null ? '—' : aed(k.aov) + ' AED'}`, k.aov == null ? '—' : aed(k.aov), '◆', true, 'Total and average basket in AED') +
+    big(`${secs(k.e2e_p50_ms)}<small>s</small>`, `Reply time · p95 ${k.e2e_p95_ms == null ? '—' : secs(k.e2e_p95_ms) + ' s'}`, k.e2e_p95_ms == null ? '—' : secs(k.e2e_p95_ms), '⚡', false, 'Median reply time; badge = 95th percentile');
 }
 
-function renderFunnel(f) {
-  const top = Math.max(1, f[0]?.n || 0);
-  $('funnel').innerHTML = f.map((s, i) => `${i ? `<div class="fconv">↓ <b>${pct(s.of_prev)}</b> continue</div>` : ''}
-    <div class="fstep" title="${esc(s.stage)}: ${s.n} (${pct(s.of_first)} of all signals)"><span class="nm">${esc(s.stage)}</span>
-      <div class="fbar"><div style="width:${(100 * s.n / top).toFixed(1)}%"></div></div><span class="n">${fmt(s.n)}</span></div>`).join('');
-  const last = f[f.length - 1]; $('funnelSub').textContent = last ? `${pct(last.of_first)} end-to-end` : '';
+/* ================================================================ MIDDLE */
+function renderSummary(d) {
+  const k = d.kpis;
+  const item = (color, label, n) => `<div class="item"><i style="background:${color}"></i>${label}<b>${fmt(n)}</b></div>`;
+  $('sum').innerHTML = item(S[0], 'Wishes received', k.signals) + item(S[1], 'DMs sent', k.dms) + item(css('--gold'), 'Orders placed', k.orders);
+  let text = 'Insights appear as wishes come in.';
+  const src = d.by_source || [];
+  const reel = src.find(s => /reel/i.test(s.label)), com = src.find(s => /comment/i.test(s.label));
+  if (reel && com && (reel.signals + com.signals) >= 4 && ((reel.conversion || 0) + (com.conversion || 0)) > 0) {
+    const better = (reel.conversion || 0) >= (com.conversion || 0) ? reel : com, worse = better === reel ? com : reel;
+    text = `<b>${better === reel ? 'Reels shared in DM' : 'Comments on posts'}</b> convert at <b>${pct(better.conversion)}</b>, vs ${pct(worse.conversion)} for ${worse === reel ? 'shared reels' : 'comments'}.`;
+  } else if ((d.by_restaurant || []).length) {
+    const r = d.by_restaurant[0]; text = `<b>${esc(r.label)}</b> is the most asked-for restaurant, with <b>${fmt(r.signals)}</b> wishes.`;
+  }
+  $('insight').innerHTML = `<span class="ic">✦</span><span>${text}</span>`;
 }
 
-let chart;
+let chart, tlCache, rangeN = 0;
 function renderActivity(tl) {
-  const labels = tl.labels.map(dubai).map(s => s.slice(0, 5));
-  const ds = [['Signals', tl.signals, S[0]], ['DMs sent', tl.dms, S[1]], ['Orders', tl.orders, S[2]]].map(([label, data, color]) => ({
-    label, data, borderColor: color, backgroundColor: color, borderWidth: 2, pointRadius: 0, pointHoverRadius: 5,
-    pointHoverBorderWidth: 2, pointHoverBorderColor: css('--surface'), tension: .35, fill: false }));
-  $('actSub').textContent = `per ${tl.step_min} min · Dubai time`;
+  tlCache = tl;
+  const n = rangeN || tl.labels.length, cut = (a) => a.slice(-n);
+  const labels = cut(tl.labels).map(l => dubai(l));
+  const ds = [['Wishes', cut(tl.signals), S[0]], ['DMs sent', cut(tl.dms), S[1]], ['Orders', cut(tl.orders), css('--gold')]].map(([label, data, color]) => ({
+    label, data, borderColor: color, backgroundColor: color, borderWidth: 2.5, pointRadius: 0, pointHoverRadius: 7,
+    pointHoverBorderWidth: 3, pointHoverBorderColor: '#eefaf2', tension: .45, fill: false }));
   if (chart) { chart.data.labels = labels; chart.data.datasets.forEach((d, i) => d.data = ds[i].data); chart.update('none'); return; }
   chart = new Chart($('act'), { type: 'line', data: { labels, datasets: ds }, options: {
     responsive: true, maintainAspectRatio: false, animation: false, interaction: { mode: 'index', intersect: false },
-    plugins: { legend: { position: 'top', align: 'end', labels: { color: css('--ink2'), boxWidth: 10, boxHeight: 10, useBorderRadius: true, borderRadius: 3, font: { family: 'Inter', size: 12 } } },
-      tooltip: { backgroundColor: 'rgba(2,10,6,.95)', borderColor: css('--goldline'), borderWidth: 1, titleColor: css('--gold'), bodyColor: css('--ink'), padding: 10, boxPadding: 4, usePointStyle: true } },
-    scales: { x: { grid: { display: false }, border: { color: css('--line') }, ticks: { color: css('--muted'), maxTicksLimit: 9, font: { size: 11 } } },
-      y: { beginAtZero: true, grid: { color: 'rgba(60,227,106,.06)' }, border: { display: false }, ticks: { color: css('--muted'), precision: 0, font: { size: 11 } } } } } });
+    plugins: { legend: { display: false },
+      tooltip: { backgroundColor: 'rgba(2,10,6,.95)', borderColor: css('--goldline'), borderWidth: 1, titleColor: css('--gold'), bodyColor: css('--ink'), padding: 12, boxPadding: 4, usePointStyle: true, cornerRadius: 12 } },
+    scales: { x: { grid: { color: 'rgba(255,255,255,.04)' }, border: { display: false }, ticks: { color: css('--muted'), maxTicksLimit: 7, font: { size: 12 } } },
+      y: { beginAtZero: true, grid: { display: false }, border: { display: false }, ticks: { color: css('--muted'), precision: 0, maxTicksLimit: 5, font: { size: 12 } } } } } });
+}
+document.querySelectorAll('#range button').forEach(b => b.onclick = () => {
+  document.querySelectorAll('#range button').forEach(x => x.classList.toggle('on', x === b));
+  rangeN = Number(b.dataset.n); if (chart) { chart.destroy(); chart = null; } if (tlCache) renderActivity(tlCache);
+});
+
+function renderHighlight(d) {
+  const top = (d.top_dishes || [])[0], second = (d.top_dishes || [])[1];
+  const missed = (d.missed || []).reduce((a, m) => a + (m.n || 0), 0);
+  if (!top) { $('hlText').textContent = 'Waiting for the first wish…'; $('hlStack').innerHTML = ''; return; }
+  $('hlText').innerHTML = `<b>${esc(top.label)}</b> is today's most wanted dish — ${fmt(top.n)} ${top.n === 1 ? 'person' : 'people'} asked Genie for it.`
+    + (missed ? ` ${fmt(missed)} ${missed === 1 ? 'wish wasn\'t' : 'wishes weren\'t'} on Careem yet.` : '');
+  $('hlStack').innerHTML = `<div class="tile t1"><span>${esc(second ? second.label : top.label)}</span><b>${fmt(second ? second.n : top.n)}</b></div>`
+    + `<div class="tile t2"><span>Not on Careem yet</span><b>${fmt(missed)}</b></div>`;
 }
 
-function segBar(title, rows, colorOf, valueOf, extra) {
-  const tot = rows.reduce((a, r) => a + valueOf(r), 0);
-  if (!tot) return `<div><h4>${title}</h4><div class="empty">No data yet</div></div>`;
-  return `<div><h4>${title}</h4><div class="seg">${rows.map((r, i) => `<div style="width:${(100 * valueOf(r) / tot).toFixed(2)}%;background:${colorOf(r, i)}" title="${esc(r.label)}: ${valueOf(r)}"></div>`).join('')}</div>
-    <div class="legend">${rows.map((r, i) => `<span><i class="sw" style="background:${colorOf(r, i)}"></i>${esc(r.label)} <b>${extra(r, tot)}</b></span>`).join('')}</div></div>`;
+/* ================================================================ BOTTOM */
+const TAG = { ordered: ['ordered', 'Ordered'], opened: ['opened', 'Link opened'], dm: ['dm', 'DM sent'], matched: ['wip', 'Sending…'],
+  'not found': ['none', 'Not on Careem'], 'no intent': ['noreply', 'No reply'], received: ['wip', 'Working…'] };
+function story(r) {
+  const who = `<b>${esc(handle(r))}</b>`;
+  const cap = shortCaption(r.caption);
+  const ask = r.kind === 'comment'
+    ? `${who} <span class="dim">asked</span> “${esc(r.text)}”${cap ? ` <span class="dim">on</span> ${esc(cap)}` : ''}`
+    : `${who} <span class="dim">shared a reel</span>${cap ? `: ${esc(cap)}` : ''}`;
+  let ans;
+  if (r.stage === 'no intent') ans = `<span class="dim">Not a buying comment, so Genie stayed quiet.</span>`;
+  else if (r.status === 'none' || r.stage === 'not found') ans = `<span class="dim">Not on Careem yet — added to missed demand.</span>`;
+  else if (r.item) ans = `${r.status === 'closest' ? '<span class="dim">Closest match:</span>' : '<span class="dim">Genie found</span>'} <span class="dish">${esc(r.item)}</span> <span class="dim">at</span> ${esc(r.merchant)}${r.price != null ? ` · AED ${esc(r.price)}` : ''}`;
+  else ans = `<span class="dim">Genie is searching Careem…</span>`;
+  const after = r.stage === 'ordered' ? ` <span class="dim">→ ordered${r.aed ? ' · AED ' + esc(aed(r.aed)) : ''}.</span>` : r.stage === 'opened' ? ' <span class="dim">→ opened the order link.</span>' : '';
+  return `<div>${ask}</div><div>${ans}${after}</div>`;
 }
-function renderMix(d) {
-  $('mix').innerHTML =
-    segBar('Where buyers come from', d.by_source, (r, i) => S[i % 2], r => r.signals, r => `${fmt(r.signals)} · ${pct(r.conversion)} convert`) +
-    segBar('Comment language', d.languages, r => LANG_COLOR[r.label] || S[3], r => r.n, r => pct(r.pct)) +
-    segBar('Answered from', d.answer_modes.map(r => ({ ...r, label: r.label.toUpperCase() })), r => MODE_COLOR[r.label.toLowerCase()] || S[3], r => r.n, r => `${fmt(r.n)} · ${pct(r.pct)}`);
-}
-
-function meters(rows, valueOf, labelOf, color) {
-  if (!rows.length) return '<div class="empty">No data yet</div>';
-  const m = Math.max(1, ...rows.map(valueOf));
-  return `<div class="meters">${rows.map(r => `<div class="meter" title="${esc(r.label)}"><span class="nm">${esc(r.label)}</span>
-    <div class="trk"><div style="width:${(100 * valueOf(r) / m).toFixed(1)}%;background:${color}"></div></div><span class="val">${labelOf(r)}</span></div>`).join('')}</div>`;
-}
-function renderCreators(rows) {
-  if (!rows.length) { $('creators').innerHTML = '<div class="empty">No creator posts yet</div>'; return; }
-  $('creators').innerHTML = `<table><tr><th>Creator</th><th>Signals</th><th>Orders</th><th>Conversion</th><th>AED</th></tr>
-    ${rows.slice(0, 5).map((r, i) => `<tr><td><span class="rank">${i + 1}</span>@${esc(r.label)}</td><td>${fmt(r.signals)}</td><td><b style="color:var(--ink)">${fmt(r.orders)}</b></td>
-      <td><span class="cv"><i style="width:${Math.min(100, r.conversion || 0)}%"></i></span>${pct(r.conversion)}</td><td>${aed(r.aed)}</td></tr>`).join('')}</table>`;
-}
-function renderAreas(d) {
-  const top = d.by_restaurant.slice(0, 3);
-  $('areas').innerHTML = meters(d.by_area.slice(0, 4), r => r.orders || 0, r => `<b>${fmt(r.orders)}</b> orders · ${aed(r.aed)} AED`, S[1])
-    + `<div class="minih">Top restaurants</div>`
-    + (top.length ? `<table>${top.map(r => `<tr><td>${esc(r.label)}</td><td>${fmt(r.signals)} asks</td><td><b style="color:var(--ink)">${fmt(r.orders)}</b> orders</td><td>${aed(r.aed)} AED</td></tr>`).join('')}</table>` : '<div class="empty">—</div>');
-}
-function renderDemand(d) {
-  $('demand').innerHTML = `<div class="minih" style="margin-top:0">Most wanted dishes</div>`
-    + meters(d.top_dishes.slice(0, 4), r => r.n, r => `<b>${fmt(r.n)}</b> asks`, S[2])
-    + `<div class="minih">Missed demand · not on Careem yet</div>`
-    + meters(d.missed.slice(0, 3), r => r.n, r => `<b>${fmt(r.n)}</b> asks`, S[3]);
-}
-
-const STAGE_LABEL = { ordered: 'ordered', opened: 'link opened', dm: 'DM sent', matched: 'matched', 'no intent': 'no reply', 'not found': 'not on Careem', received: 'working…' };
 let seenIds = null;
 function renderFeed(rows) {
-  $('feedSub').textContent = rows.length ? `latest ${Math.min(rows.length, 4)}` : '';
-  if (!rows.length) { $('feed').innerHTML = '<div class="waiting">Waiting for the first wish… comment on a collab post or share a reel 🪔</div>'; return; }
+  const f = $('fStage').value;
+  const list = rows.filter(r => f === 'all' || r.stage === f).slice(0, 3);
+  if (!list.length) { $('feed').innerHTML = `<div class="waiting">${rows.length ? 'No wishes match this filter.' : 'Waiting for the first wish… comment “price?” on a Genie post or share a reel 🪔'}</div>`; return; }
   const fresh = seenIds ? new Set(rows.filter(r => !seenIds.has(r.id)).map(r => r.id)) : new Set();
   seenIds = new Set(rows.map(r => r.id));
-  $('feed').innerHTML = rows.slice(0, 4).map(r => `<div class="card${fresh.has(r.id) ? ' new' : ''}">
-    <div class="top1"><span class="who">${r.kind === 'comment' ? '💬' : '🎬'} @${esc(r.user)} · ${dubai(r.received_at).slice(0, 5)}</span>
-      <span class="stg ${r.stage === 'ordered' ? 'ordered' : ''}">${esc(STAGE_LABEL[r.stage] || r.stage)}</span></div>
-    <div class="q">${r.text ? '“<bdi>' + esc(r.text) + '</bdi>”' : '<bdi>' + esc((r.caption || '').split('\n')[0] || 'shared a reel') + '</bdi>'}</div>
-    ${r.text && r.caption ? `<div class="cap"><bdi>${esc(r.caption.split('\n')[0])}</bdi></div>` : ''}
-    ${r.item ? `<div class="hit">→ <b>${esc(r.item)}</b> · ${esc(r.merchant)} · AED ${esc(r.price)} ${r.mode ? `<span class="mode" style="background:${MODE_COLOR[r.mode] || S[3]}">${esc(r.mode)}</span>` : ''}</div>` : ''}
-    ${r.dm_text ? `<div class="dm" title="${esc(r.dm_text)}">📩 ${esc(r.dm_text.replace(/\s+/g, ' '))}</div>` : ''}
-    ${r.simulated ? '<div class="cap">simulated — not sent to Instagram</div>' : ''}</div>`).join('');
+  $('feed').innerHTML = list.map(r => {
+    const [cls, label] = r.status === 'closest' && r.stage === 'dm' ? ['closest', 'Closest match'] : (TAG[r.stage] || ['wip', r.stage]);
+    const name = handle(r).slice(1);
+    return `<div class="wish${fresh.has(r.id) ? ' new' : ''}">
+      <div class="top"><span class="tag ${cls}">${label}</span>
+        <div class="when">${ago(r.received_at)}<br>${r.mode ? `<span class="m" style="background:${MODE_COLOR[r.mode] || S[3]}">${esc(r.mode.toUpperCase())}</span>` : ''}</div></div>
+      <div class="story">${story(r)}</div>
+      <div class="who"><span class="ava" style="background:${avaColor(name)}">${esc(name[0] || '?').toUpperCase()}</span>
+        <div><b>${esc(handle(r))}</b><small>${r.kind === 'comment' ? 'commented on a post' : 'shared a reel in DM'}${r.simulated ? ' · simulated' : ''}</small></div></div>
+    </div>`;
+  }).join('');
+}
+$('fStage').onchange = () => data && renderFeed(data.feed || []);
+
+const SIDE = { l: 'left', r: 'right', t: 'top', b: 'bottom' };
+function renderBubbles(modes) {
+  const rows = (modes || []).slice().sort((a, b) => b.n - a.n).slice(0, 3);
+  $('bubSub').textContent = rows.length ? `${fmt(rows.reduce((a, r) => a + r.n, 0))} answers` : '';
+  if (!rows.length) { $('bubbles').innerHTML = '<div class="waiting">No answers yet</div>'; return; }
+  const spots = rows.length === 1 ? [{ l: 90, t: 6, max: 210 }] : [{ l: 0, b: 0, max: 200 }, { r: 0, b: 0, max: 150 }, { r: 40, t: 0, max: 110 }];
+  $('bubbles').innerHTML = rows.map((r, i) => {
+    const s = spots[i], size = Math.round(Math.min(s.max, Math.max(92, s.max * Math.sqrt((r.pct || 0) / 100) * (i ? 1.25 : 1))));
+    const pos = Object.entries(s).filter(([k]) => k !== 'max').map(([k, v]) => `${SIDE[k]}:${v}px`).join(';');
+    return `<div class="bub${i === 2 ? ' hatch' : ''}" style="${pos};width:${size}px;height:${size}px;background:${MODE_COLOR[r.label] || S[3]};z-index:${3 - i}">
+      <div><b style="font-size:${Math.round(size / 4)}px">${pct(r.pct)}</b><small>${esc(r.label.toUpperCase())}</small></div></div>`;
+  }).join('');
 }
 
-const ICON = { received: '📥', intent: '🎯', agent_step: '🧠', tool_call: '🔧', result: '✨', reply_public: '💬', dm_sent: '📩',
-  confirm_open: '👆', order: '🛒', fallback: '🛟', error: '⚠️' };
+/* Genie's mind: newest 4 events as tiles */
+const EV = { received: ['📥', 'New wish'], intent: ['🎯', 'Understood'], agent_step: ['🧠', 'Thinking'], tool_call: ['🔧', 'Searching Careem'],
+  result: ['✨', 'Answer ready'], reply_public: ['💬', 'Replied publicly'], dm_sent: ['📩', 'DM sent'], confirm_open: ['👆', 'Link opened'],
+  order: ['🛒', 'Ordering'], fallback: ['🛟', 'Fallback'], error: ['⚠️', 'Problem'] };
 function describe(ev) {
   const d = parse(ev.detail);
   switch (ev.stage) {
-    case 'received': return `${d.kind === 'comment' ? 'comment' : 'reel'} from <b>@${esc(d.user)}</b> <bdi>${esc(d.text || '')}</bdi>`;
-    case 'intent': return `buying intent: <b>${d.buying ? 'yes' : 'no'}</b> · ${esc(d.method || d.how || '')} ${d.reason ? '· ' + esc(d.reason) : ''}`;
-    case 'agent_step': return `turn ${esc(d.turn)} → <b>${esc((d.tools || []).join(', ') || d.stop)}</b> · ${esc(d.ms)} ms`;
-    case 'tool_call': return `<b>${esc(d.tool)}</b>(${esc(Object.entries(d.args || {}).map(([k, v]) => k + '=' + (typeof v === 'object' ? JSON.stringify(v) : v)).join(' ').slice(0, 60))}) · ${esc(d.ms)} ms${d.error ? ' · ⚠ ' + esc(String(d.error).slice(0, 50)) : ''}`;
-    case 'result': return d.status === 'not_buying' ? 'not a buying comment → no reply'
-      : `<b>${esc(d.status)}</b> ${d.item ? esc(d.item) + ' · ' + esc(d.merchant) + ' · AED ' + esc(d.price_aed) : ''} · ${esc((d.mode || '').toUpperCase())} · ${esc(d.latency_ms)} ms`;
-    case 'reply_public': return `public reply posted${d.simulated ? ' (simulated)' : ''}`;
-    case 'dm_sent': return `DM sent to <b>${esc(d.to)}</b>${d.total_ms ? ' · ' + (d.total_ms / 1000).toFixed(1) + ' s end-to-end' : ''}`;
-    case 'confirm_open': return 'order link opened';
-    case 'order': return d.step ? `order · ${esc(d.step)} ${d.status ? '· <b>' + esc(d.status) + '</b>' : ''} ${d.aed ? '· AED ' + esc(d.aed) : ''}` : `order <b>${esc(d.status)}</b> ${d.aed ? 'AED ' + esc(d.aed) : ''}`;
-    case 'fallback': return `fallback${d.to ? ' → <b>' + esc(String(d.to).toUpperCase()) + '</b>' : ''} · ${esc((d.reason || '').slice(0, 80))}`;
-    default: return esc(JSON.stringify(d).slice(0, 110));
+    case 'received': return `${d.kind === 'comment' ? 'Comment' : 'Reel'} from @${esc(d.username || d.user)}${d.text ? ': “' + esc(d.text) + '”' : ''}`;
+    case 'intent': return d.buying ? `Wants to buy · ${esc(d.reason || d.method || '')}` : `Not buying · ${esc(d.reason || '')}`;
+    case 'agent_step': return `Turn ${esc(d.turn)}: ${esc((d.tools || []).join(', ') || d.stop || '')} · ${esc(d.ms)} ms`;
+    case 'tool_call': return `${esc(d.tool)} · ${esc(d.ms)} ms${d.error ? ' · failed' : ''}`;
+    case 'result': return d.status === 'not_buying' ? 'No reply needed' : `${esc(d.item || d.status)}${d.merchant ? ' at ' + esc(d.merchant) : ''}${d.price_aed != null ? ' · AED ' + esc(d.price_aed) : ''} · ${esc((d.mode || '').toUpperCase())}`;
+    case 'reply_public': return 'Posted “Sent you a DM 📩” under the comment';
+    case 'dm_sent': return `To @${esc(nameOf(d.to))}${d.total_ms ? ' · ' + (d.total_ms / 1000).toFixed(1) + ' s after the wish' : ''}`;
+    case 'confirm_open': return 'Someone opened the Pay in Careem link';
+    case 'order': return `${esc(d.step || '')}${d.status ? ' · ' + esc(d.status) : ''}${d.aed ? ' · AED ' + esc(d.aed) : ''}`;
+    case 'fallback': return `${d.to ? 'Switched to ' + esc(String(d.to).toUpperCase()) + ' · ' : ''}${esc((d.reason || '').slice(0, 70))}`;
+    default: return esc(JSON.stringify(d).slice(0, 90));
   }
 }
+const nameOf = (id) => ((data?.feed || []).find(r => r.user === String(id)) || {}).username || id;
+const mindEvents = [];
 function addMind(ev) {
-  $('mind').insertAdjacentHTML('afterbegin', `<div><span class="t">${dubai(ev.ts)}</span><span>${ICON[ev.stage] || '•'}</span><span class="x">${describe(ev)}</span></div>`);
-  while ($('mind').children.length > 30) $('mind').lastChild.remove();
+  mindEvents.unshift(ev); mindEvents.length = Math.min(mindEvents.length, 4);
+  $('stream').innerHTML = mindEvents.map(e => { const [ic, title] = EV[e.stage] || ['•', e.stage];
+    return `<div class="ev"><div class="h"><span class="ic">${ic}</span>${title}<span class="t">${dubai(e.ts, true)}</span></div><div class="x">${describe(e)}</div></div>`; }).join('');
 }
 
+/* ================================================================ DATA */
 let refreshTimer, busy = false, data;
 async function refresh() {
   if (busy) return; busy = true;
   try {
     data = await (await fetch('/api/metrics')).json();
-    renderHealth(data.health, data.mode, data.demo_rows); renderKpis(data.kpis); renderFunnel(data.funnel);
-    renderActivity(data.timeline); renderMix(data); renderCreators(data.by_creator); renderAreas(data); renderDemand(data); renderFeed(data.feed);
+    renderStatus(data.health, data.mode, data.demo_rows); renderHero(data.kpis, data.timeline); renderSummary(data);
+    renderActivity(data.timeline); renderHighlight(data); renderFeed(data.feed || []); renderBubbles(data.answer_modes);
   } catch (e) { console.warn('refresh failed', e); } finally { busy = false; }
 }
 const soon = () => { clearTimeout(refreshTimer); refreshTimer = setTimeout(refresh, 500); };
 setInterval(refresh, 4000);
 function connect() {
   const es = new EventSource('/api/stream');
-  es.addEventListener('open', () => $('sse').textContent = '● streaming');
+  es.addEventListener('open', () => $('sse').textContent = '● live');
   es.addEventListener('error', () => $('sse').textContent = '○ reconnecting…');
   es.addEventListener('ev', (m) => { addMind(JSON.parse(m.data)); soon(); });
 }
 $('modeSel').onchange = async (e) => {
   await fetch('/api/mode', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode: e.target.value }) }); soon();
 };
-$('simBtn').onclick = () => $('sim').classList.toggle('open');
 $('sim').onsubmit = async (e) => {
   e.preventDefault();
-  const r = await fetch('/simulate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.fromEntries(new FormData(e.target))) });
-  $('simMsg').textContent = r.ok ? 'wish granted ✓ — watch Live wishes' : 'failed: ' + (await r.text()).slice(0, 80);
-  setTimeout(() => $('simMsg').textContent = '', 4000);
+  const text = e.target.text.value.trim(); if (!text) return;
+  const caption = (data?.feed || []).find(r => r.caption)?.caption || 'Crispy chicken shawarma 📍 Operation Falafel';
+  const r = await fetch('/simulate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ kind: 'comment', text, caption, user: 'demo_wish' }) });
+  $('simMsg').textContent = r.ok ? 'Wish sent ✓ — watch Live wishes (simulated, not posted to Instagram)' : 'Failed: ' + (await r.text()).slice(0, 80);
+  e.target.reset(); setTimeout(() => $('simMsg').textContent = '', 5000);
 };
 refresh().then(async () => {
   for (const id of (data?.feed || []).slice(0, 2).map(s => s.id).reverse()) {

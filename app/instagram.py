@@ -125,6 +125,24 @@ def comments(media_id: str, limit: int = 50) -> list[dict[str, Any]]:
     return _get(f"{media_id}/comments", fields="id,text,timestamp,username,from", limit=limit).get("data", [])
 
 
+_username_cache: dict[str, Optional[str]] = {}
+
+
+def username_for(user_ref: Optional[str]) -> Optional[str]:
+    """Readable @username for a DM sender's numeric IGSID (cached; None if unknown). Comment authors
+    already arrive as usernames, so non-numeric refs are returned unchanged."""
+    if not user_ref:
+        return None
+    if not user_ref.isdigit():
+        return user_ref
+    if user_ref not in _username_cache:
+        try:
+            _username_cache[user_ref] = _request("GET", user_ref, params={"fields": "username"}).get("username")
+        except IGError:
+            _username_cache[user_ref] = None
+    return _username_cache[user_ref]
+
+
 # ---------------------------------------------------------------- writes (never retried)
 def reply_comment(comment_id: str, text: str) -> dict[str, Any]:
     """Public reply under a comment."""

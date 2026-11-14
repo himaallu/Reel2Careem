@@ -76,6 +76,7 @@ def handle_signal(signal: Signal, *, demo: bool = False, simulated: bool = False
     emit(signal.id, "received", {
         "kind": signal.kind, "text": signal.text, "caption": (signal.caption or "")[:300],
         "media_url": signal.media_url, "user": signal.user_ref, "simulated": simulated,
+        "username": None if simulated else instagram.username_for(signal.user_ref),
     })
 
     # text-only greeting in DMs -> help message, no agent
