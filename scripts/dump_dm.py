@@ -16,7 +16,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from _ig import ROOT, IGError, get, redact, require_token  # noqa: E402
+from _ig import ME, ROOT, IGError, get, redact, require_token  # noqa: E402
 
 # Richest first. If Meta rejects a field ("nonexisting field"), fall back to the next set.
 MESSAGE_FIELD_SETS = [
@@ -29,7 +29,7 @@ MESSAGE_FIELD_SETS = [
 
 
 def list_conversations(limit: int) -> list[dict]:
-    data = get("me/conversations", platform="instagram",
+    data = get(f"{ME}/conversations", platform="instagram",
                fields="id,updated_time,participants", limit=limit)
     return data.get("data", [])
 

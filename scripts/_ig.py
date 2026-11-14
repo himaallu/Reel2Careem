@@ -16,6 +16,10 @@ load_dotenv(ROOT / ".env")
 IG_API = os.getenv("IG_API", "https://graph.instagram.com/v23.0").rstrip("/")
 IG_TOKEN = os.getenv("IG_TOKEN", "")
 IG_USER_ID = os.getenv("IG_USER_ID", "")
+# graph.instagram.com (Instagram Login, IGAA token) understands /me.
+# graph.facebook.com (Facebook Login / unified login, EAA token) needs the IG user id,
+# because /me there is the Facebook user, not the Instagram account.
+ME = IG_USER_ID or "me"
 
 _TOKEN_RE = re.compile(r"(access_token=)[^&\s\"']+")
 

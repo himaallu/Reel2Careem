@@ -10,7 +10,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from _ig import IG_USER_ID, IGError, get, require_token  # noqa: E402
+from _ig import IG_API, IG_USER_ID, ME, IGError, get, require_token  # noqa: E402
 
 
 def show(title: str, data: object) -> None:
@@ -23,17 +23,23 @@ def main() -> int:
     ok = True
 
     try:
-        me = get("me", fields="user_id,username,name,account_type,media_count,followers_count")
-        show("me", me)
-        if IG_USER_ID and me.get("user_id") and str(me["user_id"]) != IG_USER_ID:
-            print(f"⚠️  IG_USER_ID in .env ({IG_USER_ID}) != me.user_id ({me['user_id']})")
+        fields = "id,username,name,media_count,followers_count"
+        if "graph.instagram.com" in IG_API:
+            fields += ",user_id,account_type"
+        me = get(ME, fields=fields)
+        show(f"me ({IG_API})", me)
+        real_id = str(me.get("user_id") or me.get("id") or "")
+        if not IG_USER_ID:
+            print(f"ℹ️  set IG_USER_ID={real_id} in .env")
+        elif real_id and real_id != IG_USER_ID:
+            print(f"⚠️  IG_USER_ID in .env ({IG_USER_ID}) != account id ({real_id})")
     except IGError as e:
         print(f"❌ me failed: {e}")
         return 1  # nothing else will work
 
     media: list[dict] = []
     try:
-        media = get("me/media", fields="id,caption,media_type,media_product_type,permalink,timestamp,username",
+        media = get(f"{ME}/media", fields="id,caption,media_type,media_product_type,permalink,timestamp,username",
                     limit=10).get("data", [])
         show(f"media ({len(media)})", media)
     except IGError as e:
@@ -49,7 +55,7 @@ def main() -> int:
             print(f"❌ comments on {m['id']} failed: {e}")
 
     try:
-        convs = get("me/conversations", platform="instagram", fields="id,updated_time").get("data", [])
+        convs = get(f"{ME}/conversations", platform="instagram", fields="id,updated_time").get("data", [])
         show(f"conversations ({len(convs)})", convs)
     except IGError as e:
         ok = False
