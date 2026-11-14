@@ -1,0 +1,25 @@
+# secrets
+.env
+.env.*
+!.env.example
+fixtures/*token*
+*.pem
+
+# runtime
+genie.db
+genie.db-*
+*.sqlite
+*.log
+
+# python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+
+# os / editor
+.DS_Store
+.idea/
+.vscode/
