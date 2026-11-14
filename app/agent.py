@@ -49,7 +49,8 @@ Find, using the tools:
 1. The exact dish (or its closest match) and the restaurant selling it. If the post names a restaurant, \
 look there first (food_merchant_search, then food_search_restaurant_items or food_get_restaurant_menu); \
 otherwise use food_dish_search.
-2. 2-3 similar dishes at OTHER restaurants for price comparison (food_dish_search results are ideal).
+2. 2-3 similar dishes at OTHER restaurants (never the same restaurant) for price comparison \
+(food_dish_search results are ideal).
 3. One cheap add-on (side, drink or dessert) from the chosen restaurant's menu.
 
 Be fast: aim for 2-4 tool turns and call independent tools in parallel in the same turn. \
@@ -299,8 +300,9 @@ def build_result(raw: dict[str, Any], ev: Evidence, *, mode: str, steps: list[st
         if not _grounded_item(ev, am, ai, a.get("price_aed"), a.get("eta_min")):
             steps.append(f"dropped ungrounded alternative {ai and ai.get('name')!r}")
             continue
-        if merchant and str(am.get("id")) == merchant.id and ai.get("name") == item.name:
-            continue
+        if merchant and (str(am.get("id")) == merchant.id or am.get("name") == merchant.name):
+            steps.append(f"dropped same-restaurant alternative {ai.get('name')!r}")
+            continue  # alternatives are for comparing OTHER restaurants
         alts.append(Alternative(
             merchant=Merchant(am["name"], str(am["id"]) if am.get("id") is not None else None),
             item=Item(ai["name"], str(ai["id"]) if ai.get("id") is not None else None,
@@ -457,9 +459,13 @@ def _run_tools(uses: list[dict[str, Any]], signal: Signal, mcp: Any, ev: Evidenc
         name, args = u["name"], dict(u.get("input") or {})
         args.pop("latitude", None)
         args.pop("longitude", None)
-        timeout = max(1.0, min(TOOL_TIMEOUT_S, deadline - time.monotonic() - 1))
+        # Time-box the whole call (all attempts) to what is left of the agent budget, keeping ~4 s
+        # for the model to answer afterwards: one retry only if two attempts fit.
+        left = deadline - time.monotonic() - 4
+        timeout = max(1.0, min(TOOL_TIMEOUT_S, left))
+        retries = 1 if left >= 2 * timeout else 0
         try:
-            out = mcp.call(name, args, signal_id=signal.id, timeout=timeout)
+            out = mcp.call(name, args, signal_id=signal.id, timeout=timeout, retries=retries)
             ev.add(out)
             if isinstance(out, dict) and not out.get("error"):
                 ev.ok_calls += 1

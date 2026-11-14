@@ -142,6 +142,28 @@ def main() -> int:
                                    {"name": "Falafel Plate", "id": 700102, "price_aed": 0}),
           "price 0 (discount field) does not ground a price")
 
+    # 2d. same-restaurant alternative dropped
+    fake = FakeBedrock([tool_msg(("food_get_restaurant_menu", {"restaurant_id": 30101})), tool_msg((agent.SUBMIT, {
+        "status": "found", "wanted": "falafel", "service": "food", "confidence": 0.8,
+        "merchant": {"name": "Shawarma Station", "id": 30101},
+        "item": {"name": "Falafel Plate", "id": 700102, "price_aed": 22},
+        "alternatives": [{"merchant": {"name": "Shawarma Station", "id": 30101},
+                          "item": {"name": "Mixed Grill Platter", "id": 700103}, "price_aed": 65}]}))])
+    r = agent.run_agent(sig(), mcp=mcp, client=fake)
+    check(r.alternatives == [] and any("same-restaurant" in x for x in r.steps), "same-restaurant alternative dropped")
+
+    # 2e. agent tool calls are time-boxed: a hanging tool can't eat the budget
+    class SlowMCP:
+        target = "sandbox"
+        def __init__(self): self.calls = []
+        def call(self, name, args, *, signal_id=None, timeout=10, retries=2):  # noqa: ANN001
+            self.calls.append((timeout, retries)); raise careem_mcp.CareemTimeout("slow")
+    slow = SlowMCP()
+    agent._run_tools([{"toolUseId": "a", "name": "food_dish_search", "input": {}}], sig(), slow,
+                     agent.Evidence(), time.monotonic() + 8)
+    t_, r_ = slow.calls[0]
+    check(t_ <= 4.1 and r_ == 0, f"8 s left -> per-attempt timeout {t_:.1f}s, retries {r_} (fits before the model's turn)")
+
     # 3. hallucinated main dish -> AgentError (fallback takes over)
     fake = FakeBedrock([tool_msg(("food_dish_search", {"query": "pizza"})), tool_msg((agent.SUBMIT, {
         "status": "found", "wanted": "pizza", "service": "food", "confidence": 0.9,
