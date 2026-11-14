@@ -76,6 +76,15 @@ async def webhook_receive(request: Request) -> PlainTextResponse:
 
 
 # ---------------------------------------------------------------- confirm page
+_BOT_MARKERS = ("facebookexternalhit", "facebookcatalog", "meta-externalagent", "meta-externalfetcher",
+                "whatsapp", "telegrambot", "slackbot", "twitterbot", "discordbot", "bot", "crawler", "spider")
+
+
+def _is_preview_bot(user_agent: str) -> bool:
+    ua = user_agent.lower()
+    return not ua or any(m in ua for m in _BOT_MARKERS)
+
+
 def _match_or_404(token: str):
     m = db.get_match(token)
     if not m:
@@ -87,7 +96,9 @@ def _match_or_404(token: str):
 def confirm_page(token: str, request: Request) -> HTMLResponse:
     m = _match_or_404(token)
     order = db.get_order(token)
-    if not order:  # count real opens only, not refreshes after ordering
+    # count real opens only: not link-preview crawlers (Instagram fetches the URL when the DM is sent),
+    # and not refreshes after ordering
+    if not order and not _is_preview_bot(request.headers.get("user-agent", "")):
         emit(m.signal_id, "confirm_open", {"token": token})
     return templates.TemplateResponse(request, "confirm.html", {
         "token": token, "r": m.result, "order": order,
