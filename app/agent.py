@@ -31,7 +31,8 @@ load_dotenv(Path(__file__).resolve().parents[1] / ".env")
 log = logging.getLogger("genie.agent")
 
 MAX_TURNS = 12
-BUDGET_S = float(os.getenv("AGENT_BUDGET_S", "20"))
+BUDGET_S = float(os.getenv("AGENT_BUDGET_S", "25"))
+WRAP_UP_S = 9.0                # this close to the deadline, tell the model to submit what it has
 TOOL_TIMEOUT_S = 6.0
 MAX_TOOL_CHARS = 6000          # per tool result sent to the model
 MAX_IMAGE_BYTES = 3_750_000    # Bedrock image limit
@@ -447,7 +448,12 @@ def run_agent(signal: Signal, *, mcp: Any = None, client: Any = None) -> AgentRe
         if stop == "tool_use" and uses:
             steps.append(f"turn {turn}: " + ", ".join(f"{u['name']}({_args_summary(u.get('input'))})" for u in uses)
                          + f" ({ms} ms)")
-            messages.append({"role": "user", "content": _run_tools(uses, signal, mcp, ev, deadline)})
+            content = _run_tools(uses, signal, mcp, ev, deadline)
+            if deadline - time.monotonic() < WRAP_UP_S:
+                content.append({"text": f"Time is almost up: call {SUBMIT} now with the best answer the tool "
+                                        "results above support. Do not call any other tool."})
+                steps.append("wrap-up: told the model to submit with what it has")
+            messages.append({"role": "user", "content": content})
             continue
         if stop in ("end_turn", "max_tokens"):
             raw = _json_from_text(said)

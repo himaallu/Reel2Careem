@@ -84,6 +84,43 @@ def main() -> int:
     check(fallbacks.restaurant_candidates(sig(caption="new menu @bonbird.mena and @momobros_me")) == ["bonbird", "momobros"],
           "handles cleaned: bonbird, momobros")
 
+    # 3b. the real reel that went wrong: 📍 'Available at Selected Cinnabon Stores including Deira City Centre!'
+    cap = ("Pecanbon, Pistachio Kunafa & Cookies & Cream or Classic Cinnabons paired with Carvel Soft Serve\n"
+           "@cinnabonuae\n📍Available at Selected Cinnabon Stores including Deira City Centre!\n"
+           "#cinnabon #cinnabonrolls #cinnamonroll #dubaidesserts")
+    s_ = sig(caption=cap)
+    check(fallbacks.restaurant_candidates(s_)[0] == "Cinnabon" and fallbacks.extract_dish(s_) == "cinnamon roll",
+          f"Cinnabon reel -> restaurant Cinnabon, dish cinnamon roll ({fallbacks.restaurant_candidates(s_)})")
+    check(not fallbacks._same_restaurant("Cake in the City", "Selected Cinnabon Stores including Deira City Centre"),
+          "'Cake in the City' no longer matches on the word 'City'")
+    check(fallbacks._item({"id": 1, "name": "Kunafa", "price": {"total": 0}}) is None, "AED 0 items are never offered")
+
+    # 3c. agent close to its deadline is told to submit what it has (instead of losing everything)
+    import copy
+    seen_msgs: list = []
+
+    class Slowish:
+        script = [
+            {"output": {"message": {"role": "assistant", "content": [{"toolUse": {"toolUseId": "a", "name": "food_dish_search",
+                                                                                 "input": {"query": "shawarma"}}}]}},
+             "stopReason": "tool_use"},
+            {"output": {"message": {"role": "assistant", "content": [{"toolUse": {"toolUseId": "b", "name": agent.SUBMIT, "input": {
+                "status": "found", "wanted": "shawarma", "service": "food", "confidence": 0.8,
+                "merchant": {"name": "Shawarma Station", "id": 30101},
+                "item": {"name": "Chicken Shawarma Wrap", "id": 700101, "price_aed": 18, "eta_min": 25}}}}]}},
+             "stopReason": "tool_use"}]
+
+        def converse(self, **kw):  # noqa: ANN003
+            seen_msgs.append(copy.deepcopy(kw["messages"]))
+            return Slowish.script.pop(0)
+    old_wrap = agent.WRAP_UP_S
+    agent.WRAP_UP_S = 1000      # pretend we're always close to the deadline
+    r = agent.run_agent(sig(caption="shawarma"), mcp=careem_mcp.get("sandbox"), client=Slowish())
+    agent.WRAP_UP_S = old_wrap
+    last_user = seen_msgs[-1][-1]["content"]
+    check(any("Time is almost up" in (c.get("text") or "") for c in last_user) and r.item.name == "Chicken Shawarma Wrap",
+          "near the deadline the model is told to submit now, and does")
+
     # 4. no invented dish when nothing matches
     old = fallbacks.SCRIPTED_PATH
     r = fallbacks.fallback_resolve(sig(text="hello there"), reason="all down", mode="scripted")

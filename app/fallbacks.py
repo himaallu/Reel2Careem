@@ -70,6 +70,7 @@ DISH_WORDS: tuple[str, ...] = (
     "fries", "salad", "sandwich", "wrap", "noodles", "dumplings", "poke", "bowl", "coffee", "latte", "matcha",
     "cake", "donut", "waffle", "pancake", "croissant", "kebab", "tikka", "curry", "dosa", "nuggets", "acai",
     "syrniki", "katsu", "bento", "cappuccino", "grill", "kofta", "samosa", "paratha", "pho", "bao", "gelato",
+    "cinnamon roll", "cinnamon rolls", "soft serve", "cookies", "brownie", "churros", "crepe", "tiramisu", "mousse",
 )
 ARABIC_DISHES: dict[str, str] = {
     "شاورما": "shawarma", "شاورمة": "shawarma", "برجر": "burger", "برغر": "burger", "بيتزا": "pizza",
@@ -98,9 +99,19 @@ def extract_dish(signal: Signal) -> Optional[str]:
         for ar, en in ARABIC_DISHES.items():
             if ar in source:
                 return en
-        hits = [w for w in set(DISH_WORDS) | set(_catalog_keys()) if re.search(rf"\b{re.escape(w)}\b", low)]
-        if hits:
-            return max(hits, key=len)
+        squashed = low.replace(" ", "")          # #cinnamonroll counts as "cinnamon roll"
+        counts = {}
+        for w in set(DISH_WORDS) | set(_catalog_keys()):
+            n = len(re.findall(rf"\b{re.escape(w)}\b", low))
+            if " " in w:
+                n = max(n, squashed.count(w.replace(" ", "")))
+            if n:
+                counts[w] = n
+        for w in list(counts):   # "pizza" inside a matched "pepperoni pizza" doesn't compete with it
+            if any(w != o and w in o for o in counts):
+                del counts[w]
+        if counts:   # most mentioned first, then the longest (most specific) phrase
+            return max(counts, key=lambda w: (counts[w], len(w)))
     words = [w for w in re.findall(r"[a-z][a-z'-]+", re.sub(r"[#@]\S+", " ", (signal.caption or "").lower()))
              if w not in _STOP]
     return " ".join(words[:3]) or None
@@ -116,6 +127,14 @@ def _clean_handle(h: str) -> str:
     return re.sub(r"[._]+", " ", h).strip()
 
 
+def _clean_place(c: str) -> str:
+    """'Available at Selected Cinnabon Stores including Deira City Centre!' -> 'Cinnabon'."""
+    c = re.sub(r"(?i)\b(available|find (it|them|us)|now|only|exclusively|grab (it|one))\s+(at|in|on)\b", " ", c)
+    c = re.sub(r"(?i)\b(selected|all|participating|any)\b", " ", c)
+    c = re.sub(r"(?i)\b(stores?|branches?|outlets?|locations?|including)\b.*$", " ", c)
+    return re.sub(r"\s+", " ", c).strip(" !.-–—:")
+
+
 def restaurant_candidates(signal: Signal) -> list[str]:
     """Every restaurant hint in the post, best first: tagged restaurant, 📍 line, 'at X', @handles."""
     cands: list[str] = []
@@ -123,8 +142,9 @@ def restaurant_candidates(signal: Signal) -> list[str]:
         cands.append(_clean_handle(signal.restaurant) if signal.restaurant.startswith("@") else signal.restaurant.strip())
     cap = signal.caption or ""
     for m in re.finditer(r"📍\s*([^\n,]+?)(?:\s+[-–—]\s+|,|\n|$)", cap):   # "📍 Thailand XOCO BAR - Thailand Pavilion"
-        if len(m.group(1).strip()) >= 3:
-            cands.append(m.group(1).strip())
+        c = _clean_place(m.group(1))
+        if len(c) >= 3:
+            cands.append(c)
     m = re.search(r"\bat\s+((?:[A-Z0-9][\w'&-]*\s?){1,4})", cap)
     if m:
         cands.append(m.group(1).strip())
@@ -169,7 +189,7 @@ def rule_resolve(signal: Signal) -> AgentResult:
     named_rest: Optional[dict] = None
     for cand in cands:
         rests = _restaurants(call("food_merchant_search", {"query": cand}))
-        named_rest = next((r for r in rests if _overlap(r["name"], cand)), None)
+        named_rest = next((r for r in rests if _same_restaurant(r["name"], cand)), None)
         if named_rest:
             break
     if named_rest:
@@ -240,7 +260,7 @@ def _int(v: Any) -> Any:
 def _item(d: dict[str, Any]) -> Optional[dict[str, Any]]:
     name = _name(d.get("name")) or _name(d.get("item"))
     price = _price(d.get("price"))
-    if d.get("id") is None or not name or price is None or d.get("active") is False:
+    if d.get("id") is None or not name or price is None or price <= 0 or d.get("active") is False:
         return None
     return {"id": str(d["id"]), "name": name, "price": price, "image": d.get("image_url")}
 
@@ -286,6 +306,26 @@ def _dishes(out: dict[str, Any]) -> list[dict[str, Any]]:
 
 def _words(s: str) -> set[str]:
     return {w for w in re.findall(r"[a-z0-9]+", s.lower()) if w not in _STOP and len(w) > 1}
+
+
+_GENERIC = set("""city centre center mall dubai abu dhabi sharjah uae cafe café restaurant restaurants kitchen store stores
+selected available including branch branches outlet outlets location locations deira marina jbr jlt level food
+bakery house co the and""".split())
+
+
+def _same_restaurant(rest_name: str, cand: str) -> bool:
+    """Distinctive words must match: 'Cake in the City' is NOT 'Cinnabon Stores including Deira City Centre'."""
+    sq_r = "".join(sorted(_words(rest_name) - _GENERIC, key=rest_name.lower().find))
+    sq_c = "".join(_words(cand) - _GENERIC) if len(_words(cand) - _GENERIC) == 1 else ""
+    if len(sq_r) >= 5 and sq_c and (sq_c == sq_r or sq_c.startswith(sq_r)):   # @pizzapiazza -> Pizza Piazza
+        return True
+    rw = _words(rest_name) - _GENERIC
+    cw = _words(cand) - _GENERIC
+    inter = rw & cw
+    if inter and inter == rw:
+        return True                       # every distinctive word of the name is there
+    food = {w for d in DISH_WORDS for w in d.split()}
+    return bool(inter - food) and len(inter) >= max(1, round(0.5 * len(rw)))   # 'shawarma' alone is not a name
 
 
 def _overlap(a: str, b: str) -> bool:
