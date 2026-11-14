@@ -166,14 +166,14 @@ def rule_resolve(signal: Signal) -> AgentResult:
             continue
         best = _best_item(r["items"], dish) or (r["items"][0] if r["items"] else None)
         if best:
-            alts.append(Alternative(Merchant(r["name"], r["id"]),
+            alts.append(Alternative(Merchant(r["name"], r["id"], r.get("area")),
                                     Item(best["name"], best["id"], best["price"], r["eta"]), best["price"], r["eta"]))
         if len(alts) == 3:
             break
     exact = all(w in it["name"].lower() for w in dish.split())
     return AgentResult(
         status="found" if exact else "closest", mode="rules", wanted=dish, service="food",
-        merchant=Merchant(rest["name"], rest["id"]),
+        merchant=Merchant(rest["name"], rest["id"], rest.get("area")),
         item=Item(it["name"], it["id"], it["price"], rest["eta"], it.get("image")),
         alternatives=alts, addon=None, confidence=0.6 if exact else 0.4, steps=steps,
     )
@@ -214,7 +214,9 @@ def _restaurants(out: dict[str, Any]) -> list[dict[str, Any]]:
         if (r.get("availability_details") or {}).get("is_available") is False:
             continue
         eta = (r.get("delivery") or {}).get("average")
-        res.append({"id": str(r["id"]), "name": _name(r.get("name")),
+        loc = r.get("location")
+        loc = loc.get("value") if isinstance(loc, dict) else loc
+        res.append({"id": str(r["id"]), "name": _name(r.get("name")), "area": loc if isinstance(loc, str) else None,
                     "eta": int(eta) if isinstance(eta, (int, float)) else None,
                     "items": [i for i in (_item(x) for x in r.get("items") or [] if isinstance(x, dict)) if i]})
     return res

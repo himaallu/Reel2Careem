@@ -62,6 +62,7 @@ class Signal:
 class Merchant:
     name: str
     id: Optional[str] = None
+    area: Optional[str] = None   # e.g. "Dubai Marina", from the Careem restaurant location (optional)
 
 
 @dataclass
@@ -169,7 +170,7 @@ _STR_OR_NULL = {"type": ["string", "null"]}
 
 MERCHANT_SCHEMA = {
     "type": "object",
-    "properties": {"name": {"type": "string"}, "id": _STR_OR_NULL},
+    "properties": {"name": {"type": "string"}, "id": _STR_OR_NULL, "area": _STR_OR_NULL},
     "required": ["name"],
 }
 ITEM_SCHEMA = {

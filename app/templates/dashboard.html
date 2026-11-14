@@ -4,316 +4,423 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Careem Genie · Live</title>
-<script src="https://cdn.tailwindcss.com/3.4.16"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Marcellus&family=Inter:wght@400;500;600;700&family=Amiri:wght@700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <style>
-  :root { --bg:#07110c; --panel:#0e1b14; --line:#1d3226; --green:#3ddc84; --dim:#7f9b8c; }
-  body { background: radial-gradient(1200px 600px at 20% -10%, #0f2a1c 0%, var(--bg) 60%); color:#e6f4ec; }
-  .panel { background: color-mix(in srgb, var(--panel) 92%, transparent); border:1px solid var(--line); border-radius:16px; }
-  .ptitle { font-size:11px; letter-spacing:.12em; text-transform:uppercase; color:var(--dim); }
-  .pill { display:inline-flex; align-items:center; gap:6px; padding:3px 10px; border-radius:999px; border:1px solid var(--line); font-size:12px; }
-  .dot { width:8px; height:8px; border-radius:50%; background:#64748b; }
-  .ok .dot { background:var(--green); box-shadow:0 0 8px var(--green); }
-  .bad .dot { background:#f87171; box-shadow:0 0 8px #f87171; }
-  .badge { font-size:10px; font-weight:700; letter-spacing:.08em; padding:2px 7px; border-radius:6px; text-transform:uppercase; }
-  .b-live { background:#064e3b; color:#6ee7b7; } .b-cached { background:#422006; color:#fcd34d; }
-  .b-scripted { background:#3b0764; color:#d8b4fe; } .b-rules { background:#1e3a8a; color:#93c5fd; }
-  .b-sim { background:#334155; color:#e2e8f0; } .b-demo { background:#7c2d12; color:#fdba74; }
-  .scroll { overflow-y:auto; scrollbar-width:thin; scrollbar-color:#1d3226 transparent; }
-  .tl-item { animation: slidein .35s ease-out; }
-  @keyframes slidein { from { opacity:0; transform:translateY(-6px);} to { opacity:1; transform:none; } }
-  .phone { width:300px; border-radius:38px; border:10px solid #111; background:#000; box-shadow:0 20px 60px rgba(0,0,0,.6); }
-  .bubble { background:#3797f0; color:#fff; border-radius:18px 18px 4px 18px; padding:10px 12px; white-space:pre-wrap; font-size:13px; line-height:1.35; }
-  .bubble-in { background:#262626; color:#fff; border-radius:18px 18px 18px 4px; padding:8px 12px; font-size:13px; }
-  .kpi-v { font-size:34px; font-weight:800; line-height:1; font-variant-numeric: tabular-nums; }
-  table td, table th { padding:4px 6px; }
-  .tab { padding:2px 10px; border-radius:8px; font-size:12px; color:var(--dim); }
-  .tab.on { background:#13291d; color:#e6f4ec; }
+:root {
+  --bg: #070b1f; --bg2: #0d1336; --panel: rgba(20, 26, 58, .78); --surface: #141a3a;
+  --ink: #f4ebd6; --ink2: #c9c0a8; --muted: #8e8aae; --line: rgba(233, 196, 106, .16); --line2: rgba(233, 196, 106, .32);
+  --gold: #e9c46a;                                   /* decorative accent: headings, ornaments (not data) */
+  --s1: #B98228; --s2: #1FA195; --s3: #D4602B; --s4: #9A6FDC;   /* validated categorical (dark, surface #141a3a) */
+  --track: rgba(244, 235, 214, .07);
+  --ok: #4cc38a; --bad: #e5675f; --warn: #e3a33b;
+  --gap: 14px;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body {
+  background: radial-gradient(1200px 600px at 78% -10%, #1d2660 0%, transparent 60%),
+              radial-gradient(900px 500px at 5% 110%, #2a1b4d 0%, transparent 55%),
+              linear-gradient(180deg, var(--bg) 0%, var(--bg2) 100%);
+  color: var(--ink); font: 14px/1.35 Inter, system-ui, sans-serif; overflow-x: hidden;
+}
+body::before {   /* star field */
+  content: ""; position: fixed; inset: 0; pointer-events: none; opacity: .55;
+  background-image:
+    radial-gradient(1px 1px at 12% 18%, #fff 50%, transparent 51%), radial-gradient(1px 1px at 33% 72%, #fff 50%, transparent 51%),
+    radial-gradient(1.5px 1.5px at 58% 12%, #ffe9b0 50%, transparent 51%), radial-gradient(1px 1px at 71% 44%, #fff 50%, transparent 51%),
+    radial-gradient(1px 1px at 86% 81%, #fff 50%, transparent 51%), radial-gradient(1.5px 1.5px at 22% 91%, #ffe9b0 50%, transparent 51%),
+    radial-gradient(1px 1px at 47% 38%, #fff 50%, transparent 51%), radial-gradient(1px 1px at 94% 23%, #fff 50%, transparent 51%),
+    radial-gradient(1px 1px at 5% 55%, #fff 50%, transparent 51%), radial-gradient(1px 1px at 63% 88%, #fff 50%, transparent 51%);
+  background-size: 640px 420px;
+}
+.app { position: relative; display: grid; gap: var(--gap); padding: 12px 16px 16px; min-height: 100vh;
+  grid-template-rows: 60px 112px minmax(300px, 1fr) minmax(270px, .9fr) 184px; }
+@media (min-width: 1800px) and (min-height: 1000px) { .app { height: 100vh; } }
+
+/* ---------- header */
+header { display: flex; align-items: center; gap: 18px; border-bottom: 1px solid var(--line); padding-bottom: 8px;
+  background: linear-gradient(90deg, transparent, rgba(233,196,106,.06), transparent); }
+.brand { display: flex; align-items: center; gap: 12px; white-space: nowrap; }
+.lamp { width: 42px; height: 42px; }
+.brand h1 { margin: 0; font: 400 30px/1 Marcellus, serif; letter-spacing: .5px;
+  background: linear-gradient(180deg, #ffe7a3, #d6a640); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.brand .ar { font: 700 22px/1 Amiri, serif; color: var(--gold); opacity: .9; margin-left: 4px; }
+.brand small { display: block; color: var(--ink2); font-size: 12.5px; margin-top: 3px; letter-spacing: .3px; }
+.pills { display: flex; gap: 8px; flex-wrap: wrap; }
+.pill { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; font-size: 12.5px;
+  border: 1px solid var(--line); background: rgba(255,255,255,.03); color: var(--ink2); white-space: nowrap; }
+.pill i { font-style: normal; font-weight: 700; }
+.pill.ok i { color: var(--ok); } .pill.bad i { color: var(--bad); } .pill.idle i { color: var(--muted); }
+.spacer { flex: 1; }
+.ctl { display: flex; align-items: center; gap: 10px; white-space: nowrap; color: var(--ink2); font-size: 12.5px; }
+.badge { padding: 2px 8px; border-radius: 6px; font: 600 11px/1.6 Inter; letter-spacing: .6px; text-transform: uppercase; }
+.b-demo { background: rgba(229,103,95,.16); color: #ffb3ad; border: 1px solid rgba(229,103,95,.45); }
+.b-mode { background: rgba(31,161,149,.16); color: #8ee6dc; border: 1px solid rgba(31,161,149,.45); }
+select, button { font: 500 13px Inter; color: var(--ink); background: rgba(255,255,255,.05); border: 1px solid var(--line2);
+  border-radius: 8px; padding: 5px 10px; cursor: pointer; }
+.clock { font: 400 22px Marcellus, serif; color: var(--gold); min-width: 92px; text-align: right; }
+
+/* ---------- panels */
+.row { display: grid; gap: var(--gap); min-height: 0; }
+.panel { position: relative; background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 14px 16px;
+  min-height: 0; overflow: hidden; backdrop-filter: blur(6px);
+  box-shadow: inset 0 1px 0 rgba(255,231,163,.06), 0 10px 30px rgba(0,0,0,.25); }
+.panel::before { content: ""; position: absolute; left: 18px; right: 18px; top: 0; height: 1px;
+  background: linear-gradient(90deg, transparent, var(--gold), transparent); opacity: .55; }
+.ptitle { display: flex; align-items: baseline; gap: 8px; margin: 0 0 10px; font: 400 15px Marcellus, serif; color: var(--gold);
+  letter-spacing: .6px; text-transform: uppercase; }
+.ptitle::before { content: "✦"; font-size: 11px; opacity: .8; }
+.ptitle .sub { font: 400 12px Inter; color: var(--muted); text-transform: none; letter-spacing: 0; margin-left: auto; }
+
+/* ---------- KPI tiles */
+.kpis { grid-template-columns: repeat(8, 1fr); }
+.kpi { padding: 12px 14px; display: flex; flex-direction: column; justify-content: space-between; }
+.kpi .k { font: 500 11.5px Inter; text-transform: uppercase; letter-spacing: .9px; color: var(--ink2); }
+.kpi .v { font: 700 34px/1.05 Inter; letter-spacing: -.5px; color: var(--ink); font-variant-numeric: tabular-nums; }
+.kpi .v small { font-size: 16px; font-weight: 600; color: var(--ink2); margin-left: 3px; }
+.kpi .d { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.kpi.hero { border-color: var(--line2); background: linear-gradient(160deg, rgba(185,130,40,.22), var(--panel) 60%); }
+.kpi.hero .v { color: #ffe3a1; }
+.step-arrow { position: absolute; right: -11px; top: 50%; transform: translateY(-50%); z-index: 2; color: var(--gold);
+  font-size: 13px; opacity: .7; }
+
+/* ---------- funnel */
+.funnel { display: flex; flex-direction: column; gap: 4px; }
+.fstep { display: grid; grid-template-columns: 150px 1fr 54px; align-items: center; gap: 10px; }
+.fstep .nm { color: var(--ink2); font-size: 13px; }
+.fbar { height: 22px; background: var(--track); border-radius: 4px; overflow: hidden; }
+.fbar > div { height: 100%; background: linear-gradient(90deg, var(--s1), #d9a23c); border-radius: 4px; min-width: 2px; }
+.fstep .n { text-align: right; font: 700 15px Inter; font-variant-numeric: tabular-nums; }
+.fconv { margin-left: 160px; font-size: 11.5px; color: var(--muted); height: 15px; }
+.fconv b { color: var(--ink2); font-weight: 600; }
+
+/* ---------- segmented (part-to-whole) bars + meters */
+.mix { display: flex; flex-direction: column; gap: 14px; }
+.mix h4 { margin: 0 0 6px; font: 500 12px Inter; color: var(--ink2); text-transform: uppercase; letter-spacing: .7px; }
+.seg { display: flex; gap: 2px; height: 16px; border-radius: 4px; overflow: hidden; background: var(--surface); }
+.seg > div { height: 100%; min-width: 3px; }
+.seg > div:first-child { border-radius: 4px 0 0 4px; } .seg > div:last-child { border-radius: 0 4px 4px 0; }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 6px; font-size: 12.5px; color: var(--ink2); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.sw { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+.legend b { color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; }
+.meters { display: flex; flex-direction: column; gap: 7px; }
+.meter { display: grid; grid-template-columns: minmax(0, 1.25fr) 1fr auto; gap: 10px; align-items: center; font-size: 13px; }
+.meter .nm { color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.meter .trk { height: 8px; background: var(--track); border-radius: 4px; overflow: hidden; }
+.meter .trk > div { height: 100%; border-radius: 4px; }
+.meter .val { font-variant-numeric: tabular-nums; color: var(--ink2); white-space: nowrap; text-align: right; min-width: 92px; }
+.meter .val b { color: var(--ink); }
+.empty { color: var(--muted); font-size: 13px; padding: 6px 0; }
+
+/* ---------- tables */
+table { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
+th { text-align: right; font: 500 11px Inter; letter-spacing: .7px; text-transform: uppercase; color: var(--muted);
+  padding: 0 6px 6px; border-bottom: 1px solid var(--line); }
+td { text-align: right; padding: 6px; border-bottom: 1px solid rgba(233,196,106,.07); color: var(--ink2); }
+th:first-child, td:first-child { text-align: left; }
+td:first-child { color: var(--ink); max-width: 210px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+td .cv { display: inline-block; width: 56px; height: 6px; border-radius: 3px; background: var(--track); vertical-align: middle;
+  margin-right: 6px; overflow: hidden; } td .cv > i { display: block; height: 100%; background: var(--s2); border-radius: 3px; }
+.rank { color: var(--gold); font-family: Marcellus, serif; margin-right: 6px; }
+
+/* ---------- feed + mind */
+.feed { display: flex; gap: 10px; overflow: hidden; height: calc(100% - 28px); }
+.card { flex: 1 1 0; min-width: 0; border: 1px solid var(--line); border-radius: 12px; padding: 9px 12px; background: rgba(7,11,31,.45);
+  display: flex; flex-direction: column; gap: 3px; font-size: 12.5px; overflow: hidden; animation: rise .5s ease; }
+@keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.card .top { display: flex; align-items: center; gap: 6px; color: var(--muted); white-space: nowrap; min-width: 0; }
+.card .who { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.card .q { font-size: 15px; color: var(--ink); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.card .cap { color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.card .hit { color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.card .dm { color: var(--ink2); background: rgba(31,161,149,.10); border-left: 2px solid var(--s2); padding: 3px 7px;
+  border-radius: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.stg { margin-left: auto; font: 600 10.5px Inter; letter-spacing: .6px; text-transform: uppercase; padding: 1px 7px; border-radius: 999px;
+  border: 1px solid var(--line2); color: var(--ink2); }
+.stg.ordered { color: #ffe3a1; border-color: var(--s1); background: rgba(185,130,40,.18); }
+.mode { font: 600 10px Inter; letter-spacing: .6px; text-transform: uppercase; padding: 1px 6px; border-radius: 4px; color: var(--ink); }
+.mind { font: 12.5px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; height: calc(100% - 28px); overflow: hidden; }
+.mind div { display: grid; grid-template-columns: 62px 22px 1fr; gap: 6px; white-space: nowrap; overflow: hidden; animation: rise .4s ease; }
+.mind .t { color: var(--muted); } .mind .x { color: var(--ink2); overflow: hidden; text-overflow: ellipsis; }
+.mind .x b { color: var(--ink); font-weight: 600; }
+
+/* ---------- simulate popover */
+#sim { position: absolute; right: 16px; top: 64px; z-index: 20; width: 360px; display: none; flex-direction: column; gap: 8px; }
+#sim.open { display: flex; }
+#sim input, #sim select { width: 100%; font: 13px Inter; color: var(--ink); background: rgba(7,11,31,.7); border: 1px solid var(--line2);
+  border-radius: 8px; padding: 7px 9px; }
 </style>
 </head>
-<body class="min-h-screen font-sans">
-<div class="p-4 space-y-3 max-w-[1920px] mx-auto">
-
-  <!-- header -->
-  <header class="flex flex-wrap items-center gap-3">
-    <div class="flex items-center gap-2">
-      <span class="text-3xl">🧞</span>
-      <div>
-        <h1 class="text-xl font-bold leading-tight">Careem Genie <span class="text-[color:var(--green)]">Live</span></h1>
-        <p class="text-xs text-[color:var(--dim)]">Reels &amp; comments → dish on Careem → DM → basket</p>
-      </div>
+<body>
+<div class="app">
+  <header>
+    <div class="brand">
+      <svg class="lamp" viewBox="0 0 64 64" aria-hidden="true">
+        <defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffe7a3"/><stop offset="1" stop-color="#c7922f"/></linearGradient></defs>
+        <path d="M44 14a12 12 0 1 0 6 21A14 14 0 1 1 44 14z" fill="url(#g)" opacity=".9"/>
+        <path d="M8 44c6 0 10-6 18-6h10c6 0 9 3 14 3 4 0 6-3 8-5l-2 7c-3 5-8 7-14 7H24c-6 0-11-3-16-6z" fill="url(#g)"/>
+        <path d="M27 38c0-4 3-7 7-7s7 3 7 7" fill="none" stroke="url(#g)" stroke-width="2.5"/>
+        <path d="M34 26c-2-3 2-5 0-9 3 2 4 6 0 9z" fill="#ffd27a"/>
+      </svg>
+      <div><h1>Careem Genie <span class="ar">جني كريم</span></h1><small>From a reel to a Careem order — live</small></div>
     </div>
-    <div id="health" class="flex flex-wrap gap-2 ml-4"></div>
-    <div class="ml-auto flex items-center gap-2">
-      <span id="demoBadge" class="badge b-demo hidden">demo data</span>
-      <span class="text-xs text-[color:var(--dim)]">Agent</span>
-      <span id="modeBadge" class="badge b-live">live</span>
-      <select id="modeSel" class="bg-[#0e1b14] border border-[color:var(--line)] rounded-md text-sm px-2 py-1">
-        <option value="live">live</option><option value="cached">cached</option><option value="scripted">scripted</option>
+    <div class="pills" id="pills"></div>
+    <div class="spacer"></div>
+    <div class="ctl">
+      <span id="demo"></span>
+      Agent <select id="modeSel" title="Agent mode">
+        <option value="live">LIVE</option><option value="cached">CACHED</option><option value="scripted">SCRIPTED</option>
       </select>
-      <span class="text-xs text-[color:var(--dim)]">Orders</span>
-      <span id="orderMode" class="badge b-sim">basket</span>
-      <button id="simBtn" class="ml-2 text-sm px-3 py-1 rounded-md border border-[color:var(--line)] hover:bg-[#13291d]">Simulate</button>
-      <span id="clock" class="text-sm tabular-nums text-[color:var(--dim)] w-20 text-right"></span>
+      Orders <span class="badge b-mode" id="orderMode">—</span>
+      <button id="simBtn" title="Inject a test signal">Simulate</button>
+      <span class="clock" id="clock">--:--</span>
     </div>
   </header>
 
-  <!-- simulate drawer -->
-  <form id="simForm" class="panel p-3 hidden flex flex-wrap gap-2 items-end">
-    <label class="text-xs text-[color:var(--dim)]">Kind<br>
-      <select name="kind" class="bg-black/30 border border-[color:var(--line)] rounded px-2 py-1 text-sm text-white">
-        <option value="comment">comment on collab post</option><option value="dm_share">reel shared in DM</option>
-      </select></label>
-    <label class="text-xs text-[color:var(--dim)] flex-1 min-w-[200px]">Comment / DM text<br>
-      <input name="text" value="price?" class="w-full bg-black/30 border border-[color:var(--line)] rounded px-2 py-1 text-sm text-white"></label>
-    <label class="text-xs text-[color:var(--dim)] flex-[2] min-w-[260px]">Post / reel caption<br>
-      <input name="caption" value="Best chicken shawarma in Dubai Marina 🌯 📍 Shawarma Station" class="w-full bg-black/30 border border-[color:var(--line)] rounded px-2 py-1 text-sm text-white"></label>
-    <label class="text-xs text-[color:var(--dim)]">User<br>
-      <input name="user" value="demo_user" class="w-32 bg-black/30 border border-[color:var(--line)] rounded px-2 py-1 text-sm text-white"></label>
-    <button class="px-4 py-1.5 rounded-md bg-emerald-600 hover:bg-emerald-500 text-sm font-semibold">Inject signal</button>
-    <span id="simMsg" class="text-xs text-[color:var(--dim)]"></span>
+  <form class="panel" id="sim">
+    <div class="ptitle">Simulate a signal <span class="sub">not sent to Instagram</span></div>
+    <select name="kind"><option value="comment">Comment on a collab post</option><option value="dm_share">Reel shared in DM</option></select>
+    <input name="text" placeholder="Comment text, e.g. b kam?">
+    <input name="caption" placeholder="Post caption, e.g. Crispy chicken shawarma 📍 Operation Falafel">
+    <input name="user" placeholder="Username (optional)">
+    <div style="display:flex;gap:8px;align-items:center"><button type="submit">Send</button><span id="simMsg" style="color:var(--muted);font-size:12px"></span></div>
   </form>
 
-  <!-- KPIs -->
-  <section id="kpis" class="grid grid-cols-2 md:grid-cols-6 gap-3"></section>
+  <section class="row kpis" id="kpis"></section>
 
-  <!-- main row -->
-  <section class="grid grid-cols-1 xl:grid-cols-[1fr_1.35fr_340px] gap-3" style="min-height:470px">
-    <div class="panel p-3 flex flex-col min-h-0">
-      <div class="flex items-center justify-between mb-2"><span class="ptitle">Live signals</span><span id="feedCount" class="text-xs text-[color:var(--dim)]"></span></div>
-      <div id="feed" class="scroll space-y-2 flex-1" style="max-height:440px"></div>
-    </div>
-    <div class="panel p-3 flex flex-col min-h-0">
-      <div class="flex items-center justify-between mb-2"><span class="ptitle">Agent reasoning · streaming</span><span id="sse" class="pill"><span class="dot"></span>stream</span></div>
-      <div id="timeline" class="scroll space-y-1.5 flex-1 font-mono text-[12.5px]" style="max-height:440px"></div>
-    </div>
-    <div class="panel p-3 flex flex-col items-center">
-      <span class="ptitle self-start mb-2">What Genie sent</span>
-      <div class="phone">
-        <div class="h-[560px] rounded-[28px] bg-black flex flex-col overflow-hidden">
-          <div class="flex items-center gap-2 px-3 py-3 border-b border-white/10">
-            <div class="w-7 h-7 rounded-full bg-emerald-600 grid place-items-center text-sm">🧞</div>
-            <div class="text-[13px] leading-tight"><b>Careem Genie (demo)</b><br><span id="phoneTo" class="text-white/50 text-[11px]">—</span></div>
-          </div>
-          <div id="phone" class="flex-1 scroll p-3 space-y-2 flex flex-col justify-end">
-            <p class="text-center text-white/40 text-xs">Waiting for the first DM…</p>
-          </div>
-        </div>
-      </div>
-    </div>
+  <section class="row" style="grid-template-columns: 1.05fr 1.5fr 1fr;">
+    <div class="panel"><div class="ptitle">Conversion funnel <span class="sub" id="funnelSub"></span></div><div class="funnel" id="funnel"></div></div>
+    <div class="panel"><div class="ptitle">Activity <span class="sub" id="actSub"></span></div><div style="position:relative;height:calc(100% - 30px)"><canvas id="act"></canvas></div></div>
+    <div class="panel"><div class="ptitle">The mix</div><div class="mix" id="mix"></div></div>
   </section>
 
-  <!-- bottom row -->
-  <section class="grid grid-cols-1 xl:grid-cols-4 gap-3">
-    <div class="panel p-3"><span class="ptitle">Funnel</span><div class="h-56 mt-2"><canvas id="funnel"></canvas></div></div>
-    <div class="panel p-3">
-      <div class="flex items-center gap-1 mb-2"><span class="ptitle mr-auto">Leaderboard</span>
-        <button class="tab on" data-lb="reel">Reel</button><button class="tab" data-lb="creator">Creator</button>
-        <button class="tab" data-lb="restaurant">Restaurant</button><button class="tab" data-lb="platform">Platform</button></div>
-      <table class="w-full text-sm"><thead class="text-[color:var(--dim)] text-xs"><tr><th class="text-left">Name</th><th>Signals</th><th>Matched</th><th>Orders</th><th>AED</th></tr></thead>
-        <tbody id="lb"></tbody></table>
-    </div>
-    <div class="panel p-3"><span class="ptitle">Missed demand</span><ul id="missed" class="mt-2 space-y-1 text-sm scroll" style="max-height:220px"></ul></div>
-    <div class="panel p-3"><span class="ptitle">Latency per stage</span><div class="h-56 mt-2"><canvas id="latency"></canvas></div></div>
+  <section class="row" style="grid-template-columns: 1.15fr 1fr 1fr;">
+    <div class="panel"><div class="ptitle">Creators who sell <span class="sub">signals → orders</span></div><div id="creators"></div></div>
+    <div class="panel"><div class="ptitle">Where orders go <span class="sub">by restaurant area</span></div><div id="areas"></div></div>
+    <div class="panel"><div class="ptitle">Demand <span class="sub">wanted · found vs not on Careem</span></div><div id="demand"></div></div>
+  </section>
+
+  <section class="row" style="grid-template-columns: 1.55fr 1fr;">
+    <div class="panel"><div class="ptitle">Live signals <span class="sub" id="feedSub"></span></div><div class="feed" id="feed"></div></div>
+    <div class="panel"><div class="ptitle">Genie's mind <span class="sub" id="sse">connecting…</span></div><div class="mind" id="mind"></div></div>
   </section>
 </div>
 
 <script>
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const dubai = (iso) => { try { return new Date(iso).toLocaleTimeString('en-GB', {timeZone:'Asia/Dubai', hour12:false}); } catch { return ''; } };
-const parse = (s) => { try { return typeof s === 'string' ? JSON.parse(s) : (s || {}); } catch { return {text: s}; } };
-const modeClass = (m) => ({live:'b-live', cached:'b-cached', scripted:'b-scripted', rules:'b-rules'})[m] || 'b-sim';
-let state = null, lbKey = 'reel', funnelChart = null, latChart = null;
+const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+const S = [css('--s1'), css('--s2'), css('--s3'), css('--s4')];
+const MODE_COLOR = { live: S[1], rules: S[0], cached: S[3], scripted: S[2] };   // fixed per entity
+const LANG_COLOR = { 'English': S[0], 'Arabic': S[1], 'Franco-Arabic': S[2], 'Emoji only': S[3] };
+const SRC_COLOR = [S[0], S[1]];
+const fmt = (n) => n == null ? '—' : Number(n).toLocaleString('en-US');
+const pct = (n) => n == null ? '—' : `${n}%`;
+const aed = (n) => n == null ? '—' : Number(n).toLocaleString('en-US', { maximumFractionDigits: 0 });
+const secs = (ms) => ms == null ? '—' : (ms / 1000).toFixed(1) + ' s';
+const dubai = (iso) => iso ? new Date(iso).toLocaleTimeString('en-GB', { timeZone: 'Asia/Dubai', hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '';
+const parse = (d) => { if (typeof d !== 'string') return d || {}; try { return JSON.parse(d); } catch { return { text: d }; } };
 
-setInterval(() => { $('clock').textContent = new Date().toLocaleTimeString('en-GB', {timeZone:'Asia/Dubai', hour12:false}); }, 1000);
+setInterval(() => $('clock').textContent = new Date().toLocaleTimeString('en-GB', { timeZone: 'Asia/Dubai', hour: '2-digit', minute: '2-digit' }), 1000);
 
-// ---------------------------------------------------------------- state rendering
-function renderHealth(h) {
-  const names = {instagram:'Instagram', careem_mcp:'Careem MCP', bedrock:'Bedrock', tunnel:'Tunnel'};
-  let html = Object.entries(names).map(([k, label]) => {
-    const c = h.components[k];
-    const cls = !c ? '' : (c.ok ? 'ok' : 'bad');
-    return `<span class="pill ${cls}" title="${esc(c ? c.detail + ' · ' + dubai(c.ts) : 'no data yet')}"><span class="dot"></span>${label}</span>`;
-  }).join('');
-  const ago = h.last_poll_s_ago;
-  const pc = ago == null ? '' : (ago < 15 && !h.poll_error ? 'ok' : 'bad');
-  html += `<span class="pill ${pc}" title="${esc(h.poll_error || (h.watching.length + ' posts watched'))}"><span class="dot"></span>poll ${ago == null ? 'off' : Math.round(ago) + 's ago'}</span>`;
-  $('health').innerHTML = html;
+// ---------------------------------------------------------------- header
+function renderHealth(h, mode, demoRows) {
+  const c = h.components || {};
+  const pill = (name, key) => {
+    const v = c[key];
+    const cls = !v ? 'idle' : v.ok ? 'ok' : 'bad';
+    const icon = !v ? '·' : v.ok ? '✓' : '✕';
+    return `<span class="pill ${cls}" title="${esc(v ? v.detail : 'no data yet')}"><i>${icon}</i>${name}</span>`;
+  };
+  const poll = h.last_poll_s_ago;
+  $('pills').innerHTML = pill('Instagram', 'instagram') + pill('Careem', 'careem_mcp') + pill('Bedrock', 'bedrock') + pill('Tunnel', 'tunnel')
+    + `<span class="pill ${poll == null ? 'idle' : poll < 15 ? 'ok' : 'bad'}"><i>${poll == null ? '·' : poll < 15 ? '✓' : '✕'}</i>${poll == null ? 'poll off' : 'poll ' + Math.round(poll) + 's ago'}</span>`;
+  $('modeSel').value = mode.agent_mode;
+  $('orderMode').textContent = mode.order_mode;
+  $('demo').innerHTML = demoRows ? `<span class="badge b-demo" title="seed_dashboard.py rows — run it with --clear before the demo">demo data · ${demoRows}</span>` : '';
 }
 
+// ---------------------------------------------------------------- KPI tiles
 function renderKpis(k) {
-  const items = [
-    ['Signals', k.signals], ['DMs sent', k.dms_sent], ['Confirm opens', k.confirm_opens],
-    ['Orders', k.orders], ['AED in baskets', k.aed.toLocaleString()], ['Avg agent latency', (k.avg_latency_ms/1000).toFixed(1) + 's'],
-  ];
-  $('kpis').innerHTML = items.map(([l, v]) => `<div class="panel px-4 py-3"><div class="ptitle">${l}</div><div class="kpi-v mt-1">${esc(v)}</div></div>`).join('');
-  $('demoBadge').classList.toggle('hidden', !k.demo_rows);
+  const t = (label, value, detail, hero) => `<div class="panel kpi${hero ? ' hero' : ''}"><div class="k">${label}</div><div class="v">${value}</div><div class="d">${detail}</div></div>`;
+  $('kpis').innerHTML =
+    t('Signals', fmt(k.signals), `${fmt(k.creators)} creators · ${fmt(k.restaurants)} restaurants`) +
+    t('Buying intent', pct(k.intent_rate), `${fmt(k.buying)} of ${fmt(k.signals)} want it`) +
+    t('Found on Careem', pct(k.match_rate), `${fmt(k.matched)} dishes matched`) +
+    t('DMs sent', fmt(k.dms), `median ${secs(k.e2e_p50_ms)} to reply`) +
+    t('Link opened', pct(k.open_rate), `${fmt(k.opens)} opened the order link`) +
+    t('Orders', fmt(k.orders), `${pct(k.order_rate)} of opens ordered`) +
+    t('Order value', `${aed(k.gmv)}<small>AED</small>`, `avg basket ${k.aov == null ? '—' : 'AED ' + aed(k.aov)}`, true) +
+    t('Reel → order', pct(k.conversion), 'signals that became orders');
 }
 
-function statusChip(r, s) {
-  if (!r) return `<span class="text-xs text-[color:var(--dim)]">${esc(s.last_stage || 'received')}</span>`;
-  const col = {found:'text-emerald-300', closest:'text-amber-300', none:'text-rose-300'}[r.status] || 'text-slate-300';
-  return `<span class="text-xs ${col} font-semibold">${esc(r.status)}</span> <span class="badge ${modeClass(r.mode)}">${esc(r.mode)}</span>`;
+// ---------------------------------------------------------------- funnel
+function renderFunnel(f) {
+  const top = Math.max(1, f[0]?.n || 0);
+  $('funnel').innerHTML = f.map((s, i) => `
+    ${i ? `<div class="fconv">↓ <b>${pct(s.of_prev)}</b> continue</div>` : ''}
+    <div class="fstep" title="${esc(s.stage)}: ${s.n} (${pct(s.of_first)} of all signals)">
+      <span class="nm">${esc(s.stage)}</span><div class="fbar"><div style="width:${(100 * s.n / top).toFixed(1)}%"></div></div>
+      <span class="n">${fmt(s.n)}</span></div>`).join('');
+  const last = f[f.length - 1];
+  $('funnelSub').textContent = last ? `${pct(last.of_first)} end-to-end` : '';
 }
 
-function renderFeed(rows) {
-  $('feedCount').textContent = rows.length ? `${rows.length} latest` : '';
-  $('feed').innerHTML = rows.map(s => {
-    const r = s.result;
-    const icon = s.kind === 'comment' ? '💬' : '🎬';
-    const sim = String(s.source_id).startsWith('sim-');
-    const hit = r && r.item ? `<div class="text-sm mt-1">→ <b>${esc(r.item.name)}</b> · ${esc(r.merchant?.name)} · AED ${esc(r.item.price_aed)}</div>` : '';
-    return `<div class="rounded-xl border border-[color:var(--line)] p-2.5 bg-black/20 tl-item cursor-pointer" data-sig="${esc(s.id)}">
-      <div class="flex items-center gap-2 text-xs text-[color:var(--dim)]">
-        <span>📸 ${icon}</span><span>@${esc(s.user_ref)}</span>
-        ${sim ? '<span class="badge b-sim">simulated</span>' : ''}${s.demo ? '<span class="badge b-demo">demo</span>' : ''}
-        <span class="ml-auto">${dubai(s.received_at)}</span></div>
-      ${s.text ? `<div class="text-[15px] mt-1">“${esc(s.text)}”</div>` : ''}
-      ${s.caption ? `<div class="text-xs text-[color:var(--dim)] mt-1 line-clamp-2">${esc(s.caption.slice(0, 160))}</div>` : ''}
-      ${hit}<div class="mt-1">${statusChip(r, s)}</div></div>`;
-  }).join('') || '<p class="text-sm text-[color:var(--dim)]">No signals yet. Share a reel to Genie or comment on a collab post.</p>';
-  document.querySelectorAll('#feed [data-sig]').forEach(el => el.onclick = () => showSignalTimeline(el.dataset.sig));
-}
-
-function renderLb() {
-  if (!state) return;
-  const rows = state.leaderboards[lbKey] || [];
-  $('lb').innerHTML = rows.map(r => `<tr class="border-t border-[color:var(--line)]"><td class="truncate max-w-[180px]" title="${esc(r.label)}">${esc(r.label)}</td>
-    <td class="text-center">${r.signals}</td><td class="text-center">${r.matched}</td><td class="text-center">${r.orders}</td><td class="text-center">${Math.round(r.aed)}</td></tr>`).join('')
-    || '<tr><td colspan="5" class="text-[color:var(--dim)]">—</td></tr>';
-}
-document.querySelectorAll('[data-lb]').forEach(b => b.onclick = () => {
-  document.querySelectorAll('[data-lb]').forEach(x => x.classList.remove('on')); b.classList.add('on'); lbKey = b.dataset.lb; renderLb();
-});
-
-function renderMissed(rows) {
-  $('missed').innerHTML = rows.map(m => `<li class="flex gap-2"><span>🔎</span><span class="flex-1">${esc(m.wanted)}</span><span class="text-xs text-[color:var(--dim)]">${dubai(m.ts)}</span></li>`).join('')
-    || '<li class="text-[color:var(--dim)]">Nothing missed yet.</li>';
-}
-
-Chart.defaults.color = '#7f9b8c'; Chart.defaults.borderColor = '#1d3226'; Chart.defaults.font.family = 'ui-sans-serif, system-ui';
-function renderCharts(funnel, lat) {
-  const fData = { labels: funnel.map(f => f.stage), datasets: [{ data: funnel.map(f => f.n), backgroundColor: '#3ddc84', borderRadius: 6, barThickness: 18 }] };
-  if (!funnelChart) funnelChart = new Chart($('funnel'), { type: 'bar', data: fData,
-    options: { indexAxis: 'y', maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { beginAtZero: true, ticks: { precision: 0 } }, y: { grid: { display: false } } } } });
-  else { funnelChart.data = fData; funnelChart.update('none'); }
-  const lData = { labels: lat.map(l => l.stage), datasets: [{ data: lat.map(l => l.ms / 1000), backgroundColor: ['#3ddc84', '#22d3ee', '#a78bfa'], borderRadius: 6, barThickness: 22 }] };
-  if (!latChart) latChart = new Chart($('latency'), { type: 'bar', data: lData,
-    options: { maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => c.raw.toFixed(2) + ' s' } } },
-      scales: { y: { beginAtZero: true, title: { display: true, text: 'seconds' } }, x: { grid: { display: false } } } } });
-  else { latChart.data = lData; latChart.update('none'); }
-}
-
-function renderMode(m) {
-  $('modeBadge').textContent = m.agent_mode; $('modeBadge').className = 'badge ' + modeClass(m.agent_mode);
-  $('modeSel').value = m.agent_mode; $('orderMode').textContent = m.order_mode;
-}
-
-async function refresh() {
-  try {
-    state = await (await fetch('/api/state')).json();
-    renderHealth(state.health); renderKpis(state.kpis); renderFeed(state.feed); renderLb();
-    renderMissed(state.missed); renderCharts(state.funnel, state.latency); renderMode(state.mode);
-    if (!phoneShown) { const f = state.feed.find(s => s.dm); if (f) showPhone(f.dm, f); }
-  } catch (e) { console.warn('refresh failed', e); }
-}
-let refreshTimer = null;
-const soon = () => { clearTimeout(refreshTimer); refreshTimer = setTimeout(refresh, 400); };
-setInterval(refresh, 5000);
-
-// ---------------------------------------------------------------- timeline (SSE)
-const stageInfo = {
-  received:['📥','text-sky-300'], intent:['🎯','text-slate-300'], agent_step:['🧠','text-violet-300'],
-  tool_call:['🔧','text-cyan-300'], result:['✅','text-emerald-300'], reply_public:['💬','text-emerald-200'],
-  dm_sent:['📩','text-emerald-300'], confirm_open:['👆','text-amber-200'], order:['🛒','text-amber-300'],
-  fallback:['🛟','text-amber-300'], error:['⚠️','text-rose-300'],
-};
-function describe(ev) {
-  const d = parse(ev.detail);
-  switch (ev.stage) {
-    case 'received': return `${d.kind === 'comment' ? 'comment' : 'reel in DM'} from @${esc(d.user)}: ${esc(d.text || '')} ${d.caption ? '<span class="text-[color:var(--dim)]">· ' + esc(d.caption.slice(0, 70)) + '…</span>' : ''}`;
-    case 'intent': return `buying intent: <b>${d.buying ? 'yes' : 'no'}</b> <span class="text-[color:var(--dim)]">(${esc(d.method || d.how)}${d.reason ? ' · ' + esc(d.reason) : ''}${d.latency_ms ? ' · ' + esc(d.latency_ms) + ' ms' : ''})</span>`;
-    case 'agent_step': return `turn ${esc(d.turn)} · ${esc(d.ms)} ms → ${esc((d.tools || []).join(', ') || d.stop)} ${d.said ? '<span class="text-[color:var(--dim)]">“' + esc(d.said.slice(0, 120)) + '”</span>' : ''}`;
-    case 'tool_call': { const a = Object.entries(d.args || {}).map(([k, v]) => `${k}=${typeof v === 'object' ? JSON.stringify(v) : v}`).join(' ').slice(0, 110);
-      return `<b>${esc(d.tool)}</b>(${esc(a)}) · ${esc(d.ms)} ms ${d.target && d.target !== 'production' ? '<span class="badge b-sim">' + esc(d.target) + '</span>' : ''} ${d.error ? '<span class="text-rose-300">' + esc(String(d.error).slice(0, 80)) + '</span>' : ''}`; }
-    case 'result': return d.status === 'not_buying' ? 'not a buying comment → no reply' :
-      `<b>${esc(d.status)}</b> ${d.item ? esc(d.item) + ' · ' + esc(d.merchant) + ' · AED ' + esc(d.price_aed) : ''} <span class="badge ${modeClass(d.mode)}">${esc(d.mode)}</span> <span class="text-[color:var(--dim)]">${esc(d.latency_ms)} ms · conf ${esc(d.confidence)}</span>`;
-    case 'reply_public': return `public reply posted ${d.simulated ? '<span class="badge b-sim">simulated</span>' : ''}`;
-    case 'dm_sent': return `DM sent to ${esc(d.to)} ${d.total_ms ? '<span class="text-[color:var(--dim)]">· ' + (d.total_ms / 1000).toFixed(1) + ' s end-to-end</span>' : ''} ${d.simulated ? '<span class="badge b-sim">simulated</span>' : ''}`;
-    case 'confirm_open': return 'confirm page opened';
-    case 'order': return `order: <b>${esc(d.status)}</b> ${d.aed ? 'AED ' + esc(d.aed) : ''}`;
-    case 'fallback': return `fallback: ${esc(d.reason || '')}`;
-    case 'error': return `${esc(d.where || '')}: ${esc(d.error || ev.detail)}`;
-    default: return esc(typeof d === 'object' ? JSON.stringify(d).slice(0, 140) : d);
-  }
-}
-function tlRow(ev) {
-  const [icon, col] = stageInfo[ev.stage] || ['•', 'text-slate-300'];
-  return `<div class="tl-item flex gap-2 items-start"><span class="text-[color:var(--dim)] w-16 shrink-0">${dubai(ev.ts)}</span>
-    <span class="w-5 shrink-0">${icon}</span><span class="${col} w-24 shrink-0">${esc(ev.stage)}</span>
-    <span class="flex-1 break-words text-slate-200">${describe(ev)}</span></div>`;
-}
-function addTimeline(ev) {
-  const tl = $('timeline');
-  tl.insertAdjacentHTML('afterbegin', tlRow(ev));
-  while (tl.children.length > 150) tl.lastChild.remove();
-}
-async function showSignalTimeline(sigId) {
-  const evs = await (await fetch('/api/events/' + encodeURIComponent(sigId))).json();
-  $('timeline').innerHTML = evs.slice().reverse().map(tlRow).join('');
-  const s = (state?.feed || []).find(x => x.id === sigId);
-  if (s && s.dm) showPhone(s.dm, s);
-}
-
-let phoneShown = false;
-function showPhone(dm, sig) {
-  phoneShown = true;
-  const d = parse(dm);
-  $('phoneTo').textContent = 'to ' + (d.to || sig?.user_ref || '');
-  const incoming = sig ? (sig.kind === 'dm_share'
-      ? `<div class="bubble-in self-start max-w-[85%]">🎬 Shared a reel${sig.caption ? '<br><span class="text-white/60 text-[11px]">' + esc(sig.caption.slice(0, 80)) + '…</span>' : ''}</div>`
-      : `<div class="bubble-in self-start max-w-[85%] text-white/80">💬 commented “${esc(sig.text)}”</div>`) : '';
-  const linked = esc(d.text || '').replace(/(https?:\/\/[^\s]+)/g, '<u>$1</u>');
-  $('phone').innerHTML = `${incoming}<div class="bubble self-end max-w-[90%] tl-item">${linked}</div>
-    ${d.simulated ? '<p class="text-center text-white/40 text-[10px]">simulated — not sent to Instagram</p>' : '<p class="text-right text-white/40 text-[10px]">Sent ✓</p>'}`;
-}
-
-function connect() {
-  const es = new EventSource('/api/stream');
-  es.addEventListener('open', () => $('sse').className = 'pill ok');
-  es.addEventListener('error', () => $('sse').className = 'pill bad');
-  es.addEventListener('ev', (m) => {
-    const ev = JSON.parse(m.data);
-    addTimeline(ev);
-    if (ev.stage === 'dm_sent') {
-      const sig = (state?.feed || []).find(s => s.id === ev.signal_id);
-      showPhone(ev.detail, sig || null);
-    }
-    soon();
+// ---------------------------------------------------------------- activity (one axis: counts)
+let chart;
+function renderActivity(tl) {
+  const labels = tl.labels.map(dubai).map(s => s.slice(0, 5));
+  const ds = [['Signals', tl.signals, S[0]], ['DMs sent', tl.dms, S[1]], ['Orders', tl.orders, S[2]]].map(([label, data, color]) => ({
+    label, data, borderColor: color, backgroundColor: color, borderWidth: 2, pointRadius: 0, pointHoverRadius: 5,
+    pointHoverBorderWidth: 2, pointHoverBorderColor: css('--surface'), tension: .3, fill: false }));
+  $('actSub').textContent = `per ${tl.step_min} min · Dubai time`;
+  if (chart) { chart.data.labels = labels; chart.data.datasets.forEach((d, i) => d.data = ds[i].data); chart.update('none'); return; }
+  chart = new Chart($('act'), {
+    type: 'line', data: { labels, datasets: ds },
+    options: {
+      responsive: true, maintainAspectRatio: false, animation: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { position: 'top', align: 'end', labels: { color: css('--ink2'), boxWidth: 10, boxHeight: 10, useBorderRadius: true, borderRadius: 3, font: { family: 'Inter', size: 12 } } },
+        tooltip: { backgroundColor: 'rgba(7,11,31,.95)', borderColor: css('--line2'), borderWidth: 1, titleColor: css('--gold'),
+          bodyColor: css('--ink'), padding: 10, boxPadding: 4, usePointStyle: true },
+      },
+      scales: {
+        x: { grid: { display: false }, border: { color: css('--line') }, ticks: { color: css('--muted'), maxTicksLimit: 9, font: { size: 11 } } },
+        y: { beginAtZero: true, grid: { color: 'rgba(233,196,106,.07)' }, border: { display: false },
+             ticks: { color: css('--muted'), precision: 0, font: { size: 11 } } },
+      },
+    },
   });
 }
 
-// ---------------------------------------------------------------- controls
+// ---------------------------------------------------------------- mix: segmented bars
+function segBar(title, rows, colorOf, valueOf, extra) {
+  const tot = rows.reduce((a, r) => a + valueOf(r), 0);
+  if (!tot) return `<div><h4>${title}</h4><div class="empty">No data yet</div></div>`;
+  return `<div><h4>${title}</h4><div class="seg">${rows.map((r, i) =>
+      `<div style="width:${(100 * valueOf(r) / tot).toFixed(2)}%;background:${colorOf(r, i)}" title="${esc(r.label)}: ${valueOf(r)}"></div>`).join('')}</div>
+    <div class="legend">${rows.map((r, i) => `<span><i class="sw" style="background:${colorOf(r, i)}"></i>${esc(r.label)} <b>${extra(r, tot)}</b></span>`).join('')}</div></div>`;
+}
+function renderMix(d) {
+  $('mix').innerHTML =
+    segBar('Where buyers come from', d.by_source, (r, i) => SRC_COLOR[i % 2], r => r.signals,
+           r => `${fmt(r.signals)} · ${pct(r.conversion)} convert`) +
+    segBar('Comment language', d.languages, r => LANG_COLOR[r.label] || S[3], r => r.n, r => pct(r.pct)) +
+    segBar('Answered from', d.answer_modes.map(r => ({ ...r, label: r.label.toUpperCase() })),
+           r => MODE_COLOR[r.label.toLowerCase()] || S[3], r => r.n, r => `${fmt(r.n)} · ${pct(r.pct)}`);
+}
+
+// ---------------------------------------------------------------- leaderboards / meters
+function meters(rows, valueOf, labelOf, color, max) {
+  if (!rows.length) return '<div class="empty">No data yet</div>';
+  const m = max ?? Math.max(1, ...rows.map(valueOf));
+  return `<div class="meters">${rows.map(r => `<div class="meter" title="${esc(r.label)}">
+    <span class="nm">${esc(r.label)}</span><div class="trk"><div style="width:${(100 * valueOf(r) / m).toFixed(1)}%;background:${color}"></div></div>
+    <span class="val">${labelOf(r)}</span></div>`).join('')}</div>`;
+}
+function renderCreators(rows) {
+  if (!rows.length) { $('creators').innerHTML = '<div class="empty">No creator posts yet</div>'; return; }
+  $('creators').innerHTML = `<table><tr><th>Creator</th><th>Signals</th><th>Orders</th><th>Conversion</th><th>AED</th></tr>
+    ${rows.slice(0, 6).map((r, i) => `<tr><td><span class="rank">${i + 1}</span>@${esc(r.label)}</td><td>${fmt(r.signals)}</td><td><b style="color:var(--ink)">${fmt(r.orders)}</b></td>
+      <td><span class="cv"><i style="width:${Math.min(100, r.conversion || 0)}%"></i></span>${pct(r.conversion)}</td><td>${aed(r.aed)}</td></tr>`).join('')}</table>`;
+}
+function renderAreas(d) {
+  const top = d.by_restaurant.slice(0, 3);
+  $('areas').innerHTML = meters(d.by_area.slice(0, 5), r => r.orders || 0, r => `<b>${fmt(r.orders)}</b> orders · ${aed(r.aed)} AED`, S[1])
+    + `<div style="margin-top:12px;font:500 11px Inter;letter-spacing:.7px;text-transform:uppercase;color:var(--muted)">Top restaurants</div>`
+    + (top.length ? `<table style="margin-top:4px">${top.map(r => `<tr><td>${esc(r.label)}</td><td>${fmt(r.signals)} asks</td><td><b style="color:var(--ink)">${fmt(r.orders)}</b> orders</td><td>${aed(r.aed)} AED</td></tr>`).join('')}</table>` : '<div class="empty">—</div>');
+}
+function renderDemand(d) {
+  $('demand').innerHTML =
+    `<div style="font:500 11px Inter;letter-spacing:.7px;text-transform:uppercase;color:var(--muted);margin-bottom:6px">Most wanted dishes</div>`
+    + meters(d.top_dishes.slice(0, 4), r => r.n, r => `<b>${fmt(r.n)}</b> asks`, S[0])
+    + `<div style="font:500 11px Inter;letter-spacing:.7px;text-transform:uppercase;color:var(--muted);margin:12px 0 6px">Missed demand · not on Careem yet</div>`
+    + meters(d.missed.slice(0, 3), r => r.n, r => `<b>${fmt(r.n)}</b> asks`, S[2]);
+}
+
+// ---------------------------------------------------------------- live feed
+const STAGE_LABEL = { ordered: 'ordered', opened: 'link opened', dm: 'DM sent', matched: 'matched', 'no intent': 'no reply', 'not found': 'not on Careem', received: 'working…' };
+function renderFeed(rows) {
+  $('feedSub').textContent = rows.length ? `latest ${Math.min(rows.length, 4)}` : '';
+  if (!rows.length) { $('feed').innerHTML = '<div class="empty">Waiting for the first comment or shared reel…</div>'; return; }
+  $('feed').innerHTML = rows.slice(0, 4).map(r => `<div class="card">
+    <div class="top"><span class="who">${r.kind === 'comment' ? '💬' : '🎬'} @${esc(r.user)} · ${dubai(r.received_at).slice(0, 5)}</span>
+      <span class="stg ${r.stage === 'ordered' ? 'ordered' : ''}">${esc(STAGE_LABEL[r.stage] || r.stage)}</span></div>
+    <div class="q">${r.text ? '“<bdi>' + esc(r.text) + '</bdi>”' : '<bdi>' + esc((r.caption || '').split('\n')[0] || 'shared a reel') + '</bdi>'}</div>
+    ${r.text && r.caption ? `<div class="cap">${esc(r.caption.split('\n')[0])}</div>` : ''}
+    ${r.item ? `<div class="hit">→ <b>${esc(r.item)}</b> · ${esc(r.merchant)} · AED ${esc(r.price)} ${r.mode ? `<span class="mode" style="background:${MODE_COLOR[r.mode] || S[3]}">${esc(r.mode)}</span>` : ''}</div>` : ''}
+    ${r.dm_text ? `<div class="dm" title="${esc(r.dm_text)}">📩 ${esc(r.dm_text.replace(/\s+/g, ' '))}</div>` : ''}
+    ${r.simulated ? '<div class="cap">simulated — not sent to Instagram</div>' : ''}
+  </div>`).join('');
+}
+
+// ---------------------------------------------------------------- Genie's mind (SSE)
+const ICON = { received: '📥', intent: '🎯', agent_step: '🧠', tool_call: '🔧', result: '✨', reply_public: '💬', dm_sent: '📩',
+  confirm_open: '👆', order: '🛒', fallback: '🛟', error: '⚠️' };
+function describe(ev) {
+  const d = parse(ev.detail);
+  switch (ev.stage) {
+    case 'received': return `${d.kind === 'comment' ? 'comment' : 'reel'} from <b>@${esc(d.user)}</b> <bdi>${esc(d.text || '')}</bdi>`;
+    case 'intent': return `buying intent: <b>${d.buying ? 'yes' : 'no'}</b> · ${esc(d.method || d.how || '')} ${d.reason ? '· ' + esc(d.reason) : ''}`;
+    case 'agent_step': return `turn ${esc(d.turn)} → <b>${esc((d.tools || []).join(', ') || d.stop)}</b> · ${esc(d.ms)} ms`;
+    case 'tool_call': return `<b>${esc(d.tool)}</b>(${esc(Object.entries(d.args || {}).map(([k, v]) => k + '=' + (typeof v === 'object' ? JSON.stringify(v) : v)).join(' ').slice(0, 70))}) · ${esc(d.ms)} ms${d.error ? ' · ⚠ ' + esc(String(d.error).slice(0, 60)) : ''}`;
+    case 'result': return d.status === 'not_buying' ? 'not a buying comment → no reply'
+      : `<b>${esc(d.status)}</b> ${d.item ? esc(d.item) + ' · ' + esc(d.merchant) + ' · AED ' + esc(d.price_aed) : ''} · ${esc((d.mode || '').toUpperCase())} · ${esc(d.latency_ms)} ms`;
+    case 'reply_public': return `public reply posted${d.simulated ? ' (simulated)' : ''}`;
+    case 'dm_sent': return `DM sent to <b>${esc(d.to)}</b>${d.total_ms ? ' · ' + (d.total_ms / 1000).toFixed(1) + ' s end-to-end' : ''}`;
+    case 'confirm_open': return 'order link opened';
+    case 'order': return d.step ? `order · ${esc(d.step)} ${d.status ? '· <b>' + esc(d.status) + '</b>' : ''} ${d.aed ? '· AED ' + esc(d.aed) : ''}` : `order <b>${esc(d.status)}</b> ${d.aed ? 'AED ' + esc(d.aed) : ''}`;
+    case 'fallback': return `fallback${d.to ? ' → <b>' + esc(String(d.to).toUpperCase()) + '</b>' : ''} · ${esc((d.reason || '').slice(0, 90))}`;
+    default: return esc(JSON.stringify(d).slice(0, 120));
+  }
+}
+function addMind(ev) {
+  $('mind').insertAdjacentHTML('afterbegin', `<div><span class="t">${dubai(ev.ts)}</span><span>${ICON[ev.stage] || '•'}</span><span class="x">${describe(ev)}</span></div>`);
+  while ($('mind').children.length > 40) $('mind').lastChild.remove();
+}
+
+// ---------------------------------------------------------------- refresh loop
+let refreshTimer, busy = false, data;
+async function refresh() {
+  if (busy) return; busy = true;
+  try {
+    data = await (await fetch('/api/metrics')).json();
+    renderHealth(data.health, data.mode, data.demo_rows); renderKpis(data.kpis); renderFunnel(data.funnel);
+    renderActivity(data.timeline); renderMix(data); renderCreators(data.by_creator); renderAreas(data); renderDemand(data);
+    renderFeed(data.feed);
+  } catch (e) { console.warn('refresh failed', e); } finally { busy = false; }
+}
+const soon = () => { clearTimeout(refreshTimer); refreshTimer = setTimeout(refresh, 500); };
+setInterval(refresh, 4000);
+
+function connect() {
+  const es = new EventSource('/api/stream');
+  es.addEventListener('open', () => $('sse').textContent = '● streaming');
+  es.addEventListener('error', () => $('sse').textContent = '○ reconnecting…');
+  es.addEventListener('ev', (m) => { addMind(JSON.parse(m.data)); soon(); });
+}
+
 $('modeSel').onchange = async (e) => {
-  const r = await fetch('/api/mode', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode: e.target.value }) });
-  renderMode(await r.json());
+  await fetch('/api/mode', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode: e.target.value }) });
+  soon();
 };
-$('simBtn').onclick = () => $('simForm').classList.toggle('hidden');
-$('simForm').onsubmit = async (e) => {
+$('simBtn').onclick = () => $('sim').classList.toggle('open');
+$('sim').onsubmit = async (e) => {
   e.preventDefault();
   const body = Object.fromEntries(new FormData(e.target));
   const r = await fetch('/simulate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-  $('simMsg').textContent = r.ok ? 'injected ✓' : 'failed: ' + (await r.text()).slice(0, 80);
-  setTimeout(() => $('simMsg').textContent = '', 3000);
+  $('simMsg').textContent = r.ok ? 'injected ✓ — watch Live signals' : 'failed: ' + (await r.text()).slice(0, 80);
+  setTimeout(() => $('simMsg').textContent = '', 4000);
 };
 
 refresh().then(async () => {
-  // seed the timeline with recent history, then stream
-  const evs = (state?.feed || []).slice(0, 3).map(s => s.id);
-  for (const id of evs.reverse()) {
-    const rows = await (await fetch('/api/events/' + encodeURIComponent(id))).json();
-    rows.forEach(addTimeline);
+  const ids = (data?.feed || []).slice(0, 2).map(s => s.id).reverse();
+  for (const id of ids) {
+    try { (await (await fetch('/api/events/' + encodeURIComponent(id))).json()).forEach(addMind); } catch {}
   }
   connect();
 });

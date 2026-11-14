@@ -160,9 +160,21 @@ def dashboard(request: Request) -> HTMLResponse:
     return templates.TemplateResponse(request, "dashboard.html", {})
 
 
+@app.get("/dashboard/classic", response_class=HTMLResponse)
+def dashboard_classic(request: Request) -> HTMLResponse:
+    """The previous dashboard (with the phone mock), kept as a fallback."""
+    return templates.TemplateResponse(request, "dashboard_classic.html", {})
+
+
 @app.get("/api/state")
 def api_state() -> dict[str, Any]:
     return stats.snapshot()
+
+
+@app.get("/api/metrics")
+def api_metrics() -> dict[str, Any]:
+    from app import metrics
+    return {**metrics.compute(), "health": stats.health(), "mode": stats.mode()}
 
 
 @app.get("/api/events/{signal_id}")

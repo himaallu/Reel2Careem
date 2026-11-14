@@ -191,7 +191,8 @@ class Evidence:
         if value.get("restaurant_id") is not None and rest is None:
             rest = {"id": str(value["restaurant_id"]), "name": None, "eta": set()}
         if value.get("id") is not None and name and any(k in value for k in ("delivery", "menu", "brand", "brand_id")):
-            rest = {"id": str(value["id"]), "name": str(name).lower(), "eta": _numbers(value.get("delivery"))}
+            rest = {"id": str(value["id"]), "name": str(name).lower(), "eta": _numbers(value.get("delivery")),
+                    "area": _area(value)}
             self.restaurants.append(rest)
         elif value.get("id") is not None and name and "price" in value:
             self.items.append({"id": str(value["id"]), "name": str(name).lower(),
@@ -219,6 +220,13 @@ class Evidence:
 
     def find_restaurant(self, merchant: dict[str, Any]) -> Optional[dict[str, Any]]:
         return next((r for r in self.restaurants if _same_rest(r, merchant)), None)
+
+
+def _area(r: dict[str, Any]) -> Optional[str]:
+    loc = r.get("location")
+    if isinstance(loc, dict):
+        loc = loc.get("value")
+    return loc.strip() if isinstance(loc, str) and loc.strip() else None
 
 
 def _numbers(v: Any) -> set[float]:
@@ -290,7 +298,9 @@ def build_result(raw: dict[str, Any], ev: Evidence, *, mode: str, steps: list[st
     if status in ("found", "closest"):
         if not _grounded_item(ev, m, it):
             raise AgentError("main dish is not grounded in tool results")
-        merchant = Merchant(name=m["name"], id=str(m["id"]) if m.get("id") is not None else None)
+        rest = ev.find_restaurant(m)
+        merchant = Merchant(name=m["name"], id=str(m["id"]) if m.get("id") is not None else None,
+                            area=rest.get("area") if rest else None)
         item = Item(name=it["name"], id=str(it["id"]) if it.get("id") is not None else None,
                     price_aed=it.get("price_aed"), eta_min=it.get("eta_min"),
                     image_url=it.get("image_url") or ev.images.get(str(it.get("id"))))
@@ -303,8 +313,10 @@ def build_result(raw: dict[str, Any], ev: Evidence, *, mode: str, steps: list[st
         if merchant and (str(am.get("id")) == merchant.id or am.get("name") == merchant.name):
             steps.append(f"dropped same-restaurant alternative {ai.get('name')!r}")
             continue  # alternatives are for comparing OTHER restaurants
+        arest = ev.find_restaurant(am)
         alts.append(Alternative(
-            merchant=Merchant(am["name"], str(am["id"]) if am.get("id") is not None else None),
+            merchant=Merchant(am["name"], str(am["id"]) if am.get("id") is not None else None,
+                              arest.get("area") if arest else None),
             item=Item(ai["name"], str(ai["id"]) if ai.get("id") is not None else None,
                       ai.get("price_aed", a.get("price_aed")), ai.get("eta_min", a.get("eta_min"))),
             price_aed=a.get("price_aed", ai.get("price_aed")), eta_min=a.get("eta_min", ai.get("eta_min")),

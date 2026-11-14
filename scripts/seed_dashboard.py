@@ -28,7 +28,10 @@ POSTS = [  # (caption, creator, merchant, dish, price)
     ("Biryani that slaps 🍛 📍 Ravi Restaurant", "spicetrail", "Ravi Restaurant", "Chicken Biryani", 28),
     ("Matcha everything 🍵 📍 Kyo Matcha", "cafehopper", "Kyo Matcha", "Iced Matcha Latte", 26),
 ]
-COMMENTS = ["price?", "where is this?", "yummy 😍", "بكم", "b kam", "need this", "delivery?", "nice pic", "how much"]
+COMMENTS = ["price?", "where is this?", "yummy 😍", "بكم", "b kam", "need this", "delivery?", "nice pic", "how much",
+            "وين المطعم؟", "abi wa7ed", "wen hatha?", "😋😋"]
+AREAS = {"Salt": "Kite Beach", "Shawarma Station": "Dubai Marina", "XOCO BAR": "Global Village",
+         "Ravi Restaurant": "Satwa", "Kyo Matcha": "Jumeirah"}
 MISSED = ["Nonna's tiramisu", "Kunafa pancakes", "Ube cheesecake", "Lobster roll from a pop-up"]
 
 
@@ -80,7 +83,7 @@ def seed(n: int) -> None:
         else:
             result = AgentResult(
                 status=rnd.choice(["found", "found", "found", "closest"]), mode=mode, wanted=dish,
-                merchant=Merchant(merchant), item=Item(dish, price_aed=price, eta_min=rnd.randint(18, 40)),
+                merchant=Merchant(merchant, area=AREAS.get(merchant)), item=Item(dish, price_aed=price, eta_min=rnd.randint(18, 40)),
                 alternatives=[Alternative(Merchant(f"{merchant} rival {k}"), Item(dish), price + rnd.randint(-6, 8), rnd.randint(20, 45)) for k in range(2)],
                 addon=Addon("Fries", 9), confidence=round(rnd.uniform(0.7, 0.98), 2), latency_ms=latency)
         token = secrets.token_urlsafe(8)
