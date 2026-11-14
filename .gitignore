@@ -23,3 +23,6 @@ venv/
 .DS_Store
 .idea/
 .vscode/
+
+# raw webhook captures from scripts/webhook_probe.py
+fixtures/webhook_samples/
