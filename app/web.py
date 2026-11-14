@@ -102,7 +102,7 @@ def confirm_page(token: str, request: Request) -> HTMLResponse:
         emit(m.signal_id, "confirm_open", {"token": token})
     return templates.TemplateResponse(request, "confirm.html", {
         "token": token, "r": m.result, "order": order,
-        "location_label": os.getenv("DEMO_LOCATION_LABEL", "Demo venue"),
+        "location_label": _delivery_label(),
         "order_mode": os.getenv("ORDER_MODE", "basket"),
     })
 
@@ -129,9 +129,19 @@ def confirm_order(token: str, addon: bool = Form(False)) -> JSONResponse:
         log.exception("orders.place failed")
         emit(m.signal_id, "error", {"where": "order", "error": f"{type(e).__name__}: {e}"[:300]}, "error")
         return JSONResponse({"status": "handed_to_app", "message": _order_message("handed_to_app")})
-    status = (res or {}).get("status") if isinstance(res, dict) else getattr(res, "status", None)
-    status = status or (db.get_order(token) or {}).get("status", "handed_to_app")
-    return JSONResponse({"status": status, "message": _order_message(status), "detail": res if isinstance(res, dict) else None})
+    if hasattr(res, "to_dict"):
+        res = res.to_dict()
+    res = res if isinstance(res, dict) else {}
+    status = res.get("status") or (db.get_order(token) or {}).get("status", "handed_to_app")
+    return JSONResponse({"status": status, "message": res.get("message") or _order_message(status), "aed": res.get("aed")})
+
+
+def _delivery_label() -> str:
+    try:
+        from app import orders
+        return orders.delivery_label() or os.getenv("DEMO_LOCATION_LABEL", "Demo venue")
+    except Exception:  # noqa: BLE001
+        return os.getenv("DEMO_LOCATION_LABEL", "Demo venue")
 
 
 def _order_message(status: str) -> str:
