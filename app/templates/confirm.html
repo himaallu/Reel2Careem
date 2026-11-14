@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Careem Genie · Confirm</title>
+<script src="https://cdn.tailwindcss.com/3.4.16"></script>
+<style>
+  body { background: #0b1410; }
+  .card { background: #111d17; border: 1px solid #1f3328; }
+  .green { color: #3ddc84; }
+  .btn { background: #00b26b; }
+  .btn:disabled { background: #2a3b32; color: #8aa597; }
+</style>
+</head>
+<body class="min-h-screen text-slate-100 font-sans">
+<main class="mx-auto max-w-md px-4 py-6 space-y-4">
+  <header class="flex items-center gap-2">
+    <span class="text-2xl">🧞</span>
+    <h1 class="text-lg font-semibold">Careem Genie</h1>
+    <span class="ml-auto text-xs px-2 py-0.5 rounded-full border border-emerald-700 text-emerald-300 uppercase">{{ r.mode }}</span>
+  </header>
+
+  {% if r.item and r.merchant %}
+  <section class="card rounded-2xl overflow-hidden">
+    {% if r.item.image_url %}<img src="{{ r.item.image_url }}" alt="" class="w-full h-48 object-cover">{% endif %}
+    <div class="p-4 space-y-1">
+      <p class="text-xs uppercase tracking-wide text-slate-400">{{ "Found it" if r.status == "found" else "Closest match" }}</p>
+      <h2 class="text-xl font-semibold">{{ r.item.name }}</h2>
+      <p class="text-slate-300">{{ r.merchant.name }}</p>
+      <div class="flex items-baseline gap-3 pt-2">
+        <span class="text-2xl font-bold green">AED <span id="total" data-base="{{ r.item.price_aed or 0 }}">{{ '%g' % (r.item.price_aed or 0) }}</span></span>
+        {% if r.item.eta_min %}<span class="text-sm text-slate-400">~{{ r.item.eta_min }} min</span>{% endif %}
+      </div>
+    </div>
+  </section>
+
+  {% if r.addon %}
+  <label class="card rounded-2xl p-4 flex items-center gap-3 cursor-pointer">
+    <input id="addon" type="checkbox" class="h-5 w-5 accent-emerald-500" data-price="{{ r.addon.price_aed or 0 }}" {% if order %}disabled{% endif %}>
+    <span class="flex-1">Add <b>{{ r.addon.name }}</b></span>
+    <span class="text-slate-300">+AED {{ '%g' % (r.addon.price_aed or 0) }}</span>
+  </label>
+  {% endif %}
+
+  {% if r.alternatives %}
+  <section class="card rounded-2xl p-4">
+    <h3 class="text-sm text-slate-400 mb-2">Compare nearby</h3>
+    <ul class="space-y-2">
+      {% for a in r.alternatives %}
+      <li class="flex justify-between gap-2 text-sm">
+        <span><b>{{ a.item.name }}</b><br><span class="text-slate-400">{{ a.merchant.name }}{% if a.eta_min %} · ~{{ a.eta_min }} min{% endif %}</span></span>
+        <span class="whitespace-nowrap">AED {{ '%g' % (a.price_aed or a.item.price_aed or 0) }}</span>
+      </li>
+      {% endfor %}
+    </ul>
+  </section>
+  {% endif %}
+
+  <p class="text-sm text-slate-400">📍 Delivering to <b class="text-slate-200">{{ location_label }}</b></p>
+
+  <button id="confirm" class="btn w-full rounded-2xl py-4 text-lg font-semibold" {% if order and order.checkout_attempted %}disabled{% endif %}>
+    {% if order and order.checkout_attempted %}Already confirmed{% else %}Confirm on Careem{% endif %}
+  </button>
+  <p id="msg" class="text-center text-sm min-h-[1.5rem]">{% if order and order.checkout_attempted %}Check your Careem app.{% endif %}</p>
+  <p class="text-center text-xs text-slate-500">
+    {% if order_mode == "basket" %}Adds to your Careem basket — you pay in the Careem app. No money moves here.
+    {% elif order_mode == "sandbox_checkout" %}Sandbox checkout (test data, no real money).
+    {% else %}Places a real order on Careem.{% endif %}
+  </p>
+  {% else %}
+  <section class="card rounded-2xl p-6 text-center space-y-2">
+    <p class="text-3xl">🙌</p>
+    <h2 class="text-lg font-semibold">Not on Careem yet</h2>
+    <p class="text-slate-400">We've told the team you want “{{ r.wanted }}”.</p>
+  </section>
+  {% endif %}
+</main>
+<script>
+(() => {
+  const btn = document.getElementById('confirm');
+  if (!btn) return;
+  const addon = document.getElementById('addon');
+  const total = document.getElementById('total');
+  if (addon && total) addon.addEventListener('change', () => {
+    const v = parseFloat(total.dataset.base) + (addon.checked ? parseFloat(addon.dataset.price) : 0);
+    total.textContent = Number.isInteger(v) ? v : v.toFixed(2);
+  });
+  btn.addEventListener('click', async () => {
+    btn.disabled = true;                       // one tap only
+    btn.textContent = 'Confirming…';
+    const msg = document.getElementById('msg');
+    const body = new URLSearchParams({ addon: addon && addon.checked ? 'true' : 'false' });
+    try {
+      const r = await fetch('/c/{{ token }}/confirm', { method: 'POST', body });
+      const j = await r.json();
+      btn.textContent = j.status === 'basket' || j.status === 'checked_out' ? 'Done ✓' : 'Confirmed';
+      msg.textContent = j.message || 'Check your Careem app.';
+    } catch (e) {
+      btn.textContent = 'Confirmed';
+      msg.textContent = 'Check your Careem app.';   // never retry a mutating call
+    }
+  });
+})();
+</script>
+</body>
+</html>
