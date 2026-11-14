@@ -27,7 +27,13 @@ from app.contracts import (
     AGENT_RESULT_SCHEMA, Addon, AgentResult, Alternative, Item, Merchant, Signal,
 )
 
-load_dotenv(Path(__file__).resolve().parents[1] / ".env")
+_ENV = Path(__file__).resolve().parents[1] / ".env"
+load_dotenv(_ENV)
+# AWS keys in .env always win over ones exported in the terminal: an old `export AWS_...` from an
+# earlier session would otherwise silently keep expired credentials alive.
+for _k, _v in __import__("dotenv").dotenv_values(_ENV).items():
+    if _k.startswith("AWS_") and _v:
+        os.environ[_k] = _v
 log = logging.getLogger("genie.agent")
 
 MAX_TURNS = 12
