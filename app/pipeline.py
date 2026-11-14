@@ -21,7 +21,7 @@ log = logging.getLogger("genie.pipeline")
 
 _pool = ThreadPoolExecutor(max_workers=4, thread_name_prefix="pipeline")
 
-# P1-8 replaces this with FAST_MODEL_ID + keywords; this list is the Bedrock-down fallback too.
+# Only used if app/intent.py (P1-8) can't be imported.
 BUYING_KEYWORDS = (
     "price", "how much", "where", "how", "yum", "want", "order", "delivery", "deliver", "need",
     "menu", "cost", "location", "address", "link", "buy", "hungry", "craving", "😍", "🤤", "🔥",
@@ -49,18 +49,17 @@ def keyword_intent(text: str) -> bool:
     return any(k in t for k in BUYING_KEYWORDS)
 
 
-def check_intent(signal: Signal) -> tuple[bool, str]:
-    """(is_buying, how). Uses P1's classifier when it exists, else keywords."""
-    if signal.kind == "dm_share":
-        return True, "dm"
+def check_intent(signal: Signal) -> bool:
+    """P1's classifier (app/intent.py, P1-8) when present: it emits its own `intent` event and never raises.
+    Falls back to the keyword list here (and emits the event itself) if that module is missing or broken."""
     try:
-        from app import agent
-        fn = getattr(agent, "check_intent", None) or getattr(agent, "is_buying", None)
-        if fn:
-            return bool(fn(signal)), "model"
+        from app import intent
+        return bool(intent.classify(signal).buying)
     except Exception as e:  # noqa: BLE001
-        log.warning("intent classifier failed, using keywords: %s", e)
-    return keyword_intent(signal.text), "keywords"
+        log.warning("intent classifier unavailable, using keywords: %s", e)
+    buying = signal.kind == "dm_share" or keyword_intent(signal.text)
+    emit(signal.id, "intent", {"buying": buying, "how": "dm" if signal.kind == "dm_share" else "keywords"})
+    return buying
 
 
 # ---------------------------------------------------------------- main flow
@@ -86,8 +85,7 @@ def handle_signal(signal: Signal, *, demo: bool = False, simulated: bool = False
                                                                "Hi! Send me any food reel, or "), simulated)
         return None
 
-    buying, how = check_intent(signal)
-    emit(signal.id, "intent", {"buying": buying, "how": how})
+    buying = check_intent(signal)
     if not buying:
         emit(signal.id, "result", {"status": "not_buying"})
         return None
