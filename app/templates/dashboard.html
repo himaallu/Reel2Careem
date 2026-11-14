@@ -143,7 +143,10 @@ nav a.on { background: var(--card2); color: var(--ink); box-shadow: inset 0 0 0 
 .bubbles { position: relative; height: 232px; }
 .bub { position: absolute; border-radius: 50%; display: grid; place-items: center; text-align: center; color: #fff; transition: all .6s; }
 .bub b { display: block; font-weight: 400; letter-spacing: -.02em; }
-.bub small { display: block; font-size: 14px; opacity: .9; }
+.bub small { display: block; font-size: 13px; opacity: .92; line-height: 1.2; max-width: 120px; margin: 2px auto 0; }
+.money { display: flex; gap: 18px; margin: -6px 0 6px; font-size: 13px; color: var(--ink2); }
+.money b { color: var(--ink); font-size: 16px; font-weight: 600; }
+.money .w b { color: var(--gold); }
 .bub.hatch { background: repeating-linear-gradient(-45deg, rgba(255,255,255,.14) 0 2px, transparent 2px 9px) !important; box-shadow: inset 0 0 0 1px rgba(255,255,255,.25); }
 
 .mind h3 { margin: 0; font-size: 22px; font-weight: 400; display: flex; align-items: center; gap: 10px; }
@@ -220,8 +223,8 @@ nav a.on { background: var(--card2); color: var(--ink); box-shadow: inset 0 0 0 
       <div class="wishes" id="feed"></div>
     </div>
     <div class="card">
-      <div class="ctitle">How Genie answered <span class="sub" id="bubSub"></span></div>
-      <div class="bubbles" id="bubbles"></div>
+      <div class="ctitle">Signals to monetize <span class="sub" id="bubSub"></span></div>
+      <div class="money" id="money"></div><div class="bubbles" id="bubbles"></div>
     </div>
     <div class="card mind" id="mind">
       <h3>Hi, I'm Genie 🧞 <span class="st" id="sse">connecting…</span></h3>
@@ -380,6 +383,31 @@ function renderFeed(rows) {
 $('fStage').onchange = () => data && renderFeed(data.feed || []);
 
 const SIDE = { l: 'left', r: 'right', t: 'top', b: 'bottom' };
+/* Signals to monetize: buyers split by how far they got. Ordered = money made; the rest = open opportunities. */
+function renderMonetize(d) {
+  const k = d.kpis || {}, feed = d.feed || [];
+  const ordered = k.orders || 0, opened = Math.max(0, (k.opens || 0) - ordered), dmOnly = Math.max(0, (k.dm_dish || k.dms || 0) - (k.opens || 0));
+  const waitingAed = feed.filter(r => (r.stage === 'dm' || r.stage === 'opened') && r.price != null).reduce((a, r) => a + Number(r.price), 0);
+  $('bubSub').textContent = `${fmt(k.buying)} buyers`;
+  $('money').innerHTML = `<span>Earned <b>${aed(k.gmv)} AED</b></span><span class="w">Waiting <b>~${aed(waitingAed)} AED</b></span>`;
+  const rows = [
+    { label: 'Ordered', n: ordered, color: css('--gold'), text: '#2a1a00' },
+    { label: 'Opened link, not ordered', n: opened, color: S[1] },
+    { label: 'Got the DM, not opened', n: dmOnly, color: S[0] },
+  ];
+  const tot = rows.reduce((a, r) => a + r.n, 0);
+  if (!tot) { $('bubbles').innerHTML = '<div class="waiting">No buyers yet</div>'; return; }
+  const spots = [{ l: 0, b: 0, max: 190 }, { r: 0, b: 0, max: 160 }, { r: 50, t: 0, max: 130 }];
+  // biggest group gets the biggest spot
+  const order = rows.map((r, i) => i).sort((a, b) => rows[b].n - rows[a].n);
+  $('bubbles').innerHTML = order.map((ri, slot) => {
+    const r = rows[ri], s = spots[slot], share = r.n / tot;
+    const size = Math.round(Math.min(s.max, Math.max(96, s.max * Math.sqrt(share) * 1.25)));
+    const pos = Object.entries(s).filter(([q]) => q !== 'max').map(([q, v]) => `${SIDE[q]}:${v}px`).join(';');
+    return `<div class="bub" title="${esc(r.label)}: ${r.n}" style="${pos};width:${size}px;height:${size}px;background:${r.color};color:${r.text || '#fff'};z-index:${3 - slot}">
+      <div><b style="font-size:${Math.round(size / 3.6)}px">${fmt(r.n)}</b><small>${esc(r.label)}</small></div></div>`;
+  }).join('');
+}
 function renderBubbles(modes) {
   const rows = (modes || []).slice().sort((a, b) => b.n - a.n).slice(0, 3);
   $('bubSub').textContent = rows.length ? `${fmt(rows.reduce((a, r) => a + r.n, 0))} answers` : '';
@@ -428,7 +456,7 @@ async function refresh() {
   try {
     data = await (await fetch('/api/metrics')).json();
     renderStatus(data.health, data.mode, data.demo_rows); renderHero(data.kpis, data.timeline); renderSummary(data);
-    renderActivity(data.timeline); renderHighlight(data); renderFeed(data.feed || []); renderBubbles(data.answer_modes);
+    renderActivity(data.timeline); renderHighlight(data); renderFeed(data.feed || []); renderMonetize(data);
   } catch (e) { console.warn('refresh failed', e); } finally { busy = false; }
 }
 const soon = () => { clearTimeout(refreshTimer); refreshTimer = setTimeout(refresh, 500); };
