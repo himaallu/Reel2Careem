@@ -110,6 +110,9 @@ def extract_restaurant(signal: Signal) -> Optional[str]:
     if signal.restaurant:
         return signal.restaurant.lstrip("@").replace("_", " ").replace(".", " ").strip()
     cap = signal.caption or ""
+    m = re.search(r"📍\s*([^\n,]+?)(?:\s+-\s+|,|\n|$)", cap)   # "📍 Thailand XOCO BAR - Thailand Pavilion"
+    if m and len(m.group(1).strip()) >= 3:
+        return m.group(1).strip()
     m = re.search(r"\bat\s+((?:[A-Z0-9][\w'&-]*\s?){1,4})", cap)
     if m:
         return m.group(1).strip()
@@ -261,13 +264,14 @@ def _match_entry(signal: Signal, entries: list[tuple[list[str], list[str], dict]
 
 def cached_resolve(signal: Signal) -> AgentResult:
     data = _load(CATALOG_PATH)
-    entries = [(e.get("keys") or [], [str(m) for m in e.get("media_ids") or []], e.get("result") or {})
-               for e in (data.get("entries") or {}).values() if isinstance(e, dict)]
+    entries = [(e.get("keys") or [], [str(m) for m in e.get("media_ids") or []],
+                {**(e.get("result") or {}), "_captured_at": e.get("captured_at")})
+               for e in (data.get("entries") or {}).values() if isinstance(e, dict) and e.get("result")]
     raw = _match_entry(signal, entries)
     if not raw:
         raise FallbackMiss("no cached snapshot entry matches this post")
     res = AgentResult.from_dict({**copy.deepcopy(raw), "mode": "cached"})
-    res.steps = [f"cached snapshot from {data.get('snapshot_at') or 'unknown time'}"]
+    res.steps = [f"cached snapshot from {raw.get('_captured_at') or data.get('snapshot_at') or 'unknown time'}"]
     return res
 
 

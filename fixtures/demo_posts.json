@@ -1,0 +1,23 @@
+{
+  "_note": "Demo posts for scripts/snapshot.py. One entry per collab post / reel. 'keys' are extra words that should match this entry in CACHED mode (dish and restaurant names are added automatically). 'media_ids' = Instagram media id(s) / reel_video_id(s) once known.",
+  "posts": [
+    {
+      "id": "operation-falafel-shawarma",
+      "kind": "comment",
+      "text": "price?",
+      "caption": "Chicken shawarma wrap at Operation Falafel",
+      "restaurant": "Operation Falafel",
+      "keys": ["operation falafel", "chicken shawarma", "shawarma"],
+      "media_ids": []
+    },
+    {
+      "id": "xoco-bar-mousse-reel",
+      "kind": "dm_share",
+      "text": "",
+      "caption": "Paris' viral chocolate mousse has officially landed at Global Village. The hot and cold chocolate drinks were kinda nice.\n\n📍 Thailand XOCO BAR - Thailand Pavilion, Global Village\n💸 35 AED",
+      "restaurant": null,
+      "keys": ["xoco bar", "chocolate mousse"],
+      "media_ids": ["18457508113131859"]
+    }
+  ]
+}
