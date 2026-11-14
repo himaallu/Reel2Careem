@@ -233,7 +233,7 @@ function describe(ev) {
   const d = parse(ev.detail);
   switch (ev.stage) {
     case 'received': return `${d.kind === 'comment' ? 'comment' : 'reel in DM'} from @${esc(d.user)}: ${esc(d.text || '')} ${d.caption ? '<span class="text-[color:var(--dim)]">· ' + esc(d.caption.slice(0, 70)) + '…</span>' : ''}`;
-    case 'intent': return `buying intent: <b>${d.buying ? 'yes' : 'no'}</b> <span class="text-[color:var(--dim)]">(${esc(d.how)})</span>`;
+    case 'intent': return `buying intent: <b>${d.buying ? 'yes' : 'no'}</b> <span class="text-[color:var(--dim)]">(${esc(d.method || d.how)}${d.reason ? ' · ' + esc(d.reason) : ''}${d.latency_ms ? ' · ' + esc(d.latency_ms) + ' ms' : ''})</span>`;
     case 'agent_step': return `turn ${esc(d.turn)} · ${esc(d.ms)} ms → ${esc((d.tools || []).join(', ') || d.stop)} ${d.said ? '<span class="text-[color:var(--dim)]">“' + esc(d.said.slice(0, 120)) + '”</span>' : ''}`;
     case 'tool_call': { const a = Object.entries(d.args || {}).map(([k, v]) => `${k}=${typeof v === 'object' ? JSON.stringify(v) : v}`).join(' ').slice(0, 110);
       return `<b>${esc(d.tool)}</b>(${esc(a)}) · ${esc(d.ms)} ms ${d.target && d.target !== 'production' ? '<span class="badge b-sim">' + esc(d.target) + '</span>' : ''} ${d.error ? '<span class="text-rose-300">' + esc(String(d.error).slice(0, 80)) + '</span>' : ''}`; }
