@@ -1,5 +1,8 @@
 """[P2] Comment poller (+ tunnel health check) -> pipeline.submit().
 
+Watches IG_WATCH_MEDIA_IDS; default 'auto' = every recent post Genie owns, refreshed each minute,
+so a new demo post is picked up without editing .env or restarting.
+
 DMs do NOT need a poller: /conversations shows shared reels as is_unsupported, so DMs arrive via the
 `messages` webhook (web.py POST /webhook). Comments need Advanced Access for webhooks, so we poll.
 """
@@ -24,8 +27,30 @@ _stop = threading.Event()
 _started = False
 
 
+AUTO_REFRESH_S = 60
+_auto: dict[str, Any] = {"ids": [], "at": 0.0}
+
+
+def _auto_ids() -> list[str]:
+    """Genie's own latest posts (refreshed every AUTO_REFRESH_S). New posts get watched without a restart."""
+    if time.time() - _auto["at"] >= AUTO_REFRESH_S:
+        try:
+            limit = int(os.getenv("AUTO_WATCH_LIMIT", "12"))
+            _auto["ids"] = [m["id"] for m in instagram.list_media(limit=limit)]
+        except Exception as e:  # noqa: BLE001  keep the previous list on errors
+            log.warning("auto-watch refresh failed: %s", instagram.redact(str(e))[:200])
+        _auto["at"] = time.time()
+    return list(_auto["ids"])
+
+
 def watch_ids() -> list[str]:
-    return [m.strip() for m in os.getenv("IG_WATCH_MEDIA_IDS", "").split(",") if m.strip()]
+    """IG_WATCH_MEDIA_IDS: comma-separated post ids, plus 'auto' (= all of Genie's own recent posts).
+    Empty or unset means 'auto'. Example: 'auto,1789...' watches Genie's posts and one extra post."""
+    raw = [m.strip() for m in os.getenv("IG_WATCH_MEDIA_IDS", "auto").split(",") if m.strip()]
+    if not raw or "auto" in (r.lower() for r in raw):
+        explicit = [r for r in raw if r.lower() != "auto"]
+        return list(dict.fromkeys(_auto_ids() + explicit))
+    return raw
 
 
 def _parse_ts(ts: Optional[str]) -> Optional[datetime]:
@@ -108,11 +133,12 @@ def start() -> None:
         return
     _started = True
     state["started_at"] = time.time()
-    if watch_ids() and os.getenv("IG_TOKEN"):
+    if os.getenv("IG_TOKEN"):
         threading.Thread(target=_comment_loop, name="comment-poller", daemon=True).start()
-        log.info("comment poller watching %s", watch_ids())
+        log.info("comment poller watching %s (IG_WATCH_MEDIA_IDS=%s)", watch_ids(),
+                 os.getenv("IG_WATCH_MEDIA_IDS", "auto") or "auto")
     else:
-        log.warning("comment poller off (IG_WATCH_MEDIA_IDS or IG_TOKEN empty)")
+        log.warning("comment poller off (IG_TOKEN empty)")
     threading.Thread(target=_tunnel_loop, name="tunnel-health", daemon=True).start()
 
 
