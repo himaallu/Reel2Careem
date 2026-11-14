@@ -70,6 +70,7 @@ DISH_WORDS: tuple[str, ...] = (
     "fries", "salad", "sandwich", "wrap", "noodles", "dumplings", "poke", "bowl", "coffee", "latte", "matcha",
     "cake", "donut", "waffle", "pancake", "croissant", "kebab", "tikka", "curry", "dosa", "nuggets", "acai",
     "syrniki", "katsu", "bento", "cappuccino", "grill", "kofta", "samosa", "paratha", "pho", "bao", "gelato",
+    "cinnamon roll", "cinnamon rolls", "soft serve", "cookies", "brownie", "churros", "crepe", "tiramisu", "mousse",
 )
 ARABIC_DISHES: dict[str, str] = {
     "شاورما": "shawarma", "شاورمة": "shawarma", "برجر": "burger", "برغر": "burger", "بيتزا": "pizza",
@@ -98,28 +99,71 @@ def extract_dish(signal: Signal) -> Optional[str]:
         for ar, en in ARABIC_DISHES.items():
             if ar in source:
                 return en
-        hits = [w for w in set(DISH_WORDS) | set(_catalog_keys()) if re.search(rf"\b{re.escape(w)}\b", low)]
-        if hits:
-            return max(hits, key=len)
+        squashed = low.replace(" ", "")          # #cinnamonroll counts as "cinnamon roll"
+        counts = {}
+        for w in set(DISH_WORDS) | set(_catalog_keys()):
+            n = len(re.findall(rf"\b{re.escape(w)}\b", low))
+            if " " in w:
+                n = max(n, squashed.count(w.replace(" ", "")))
+            if n:
+                counts[w] = n
+        for w in list(counts):   # "pizza" inside a matched "pepperoni pizza" doesn't compete with it
+            if any(w != o and w in o for o in counts):
+                del counts[w]
+        if counts:   # most mentioned first, then the longest (most specific) phrase
+            return max(counts, key=lambda w: (counts[w], len(w)))
     words = [w for w in re.findall(r"[a-z][a-z'-]+", re.sub(r"[#@]\S+", " ", (signal.caption or "").lower()))
              if w not in _STOP]
     return " ".join(words[:3]) or None
 
 
-def extract_restaurant(signal: Signal) -> Optional[str]:
+_HANDLE_SUFFIX = re.compile(r"[._-]?(mena|uae|dxb|dubai|ae|me|ksa|official|eats|food|kitchen|hq)$", re.I)
+
+
+def _clean_handle(h: str) -> str:
+    h = h.lstrip("@").strip(".")
+    for _ in range(2):
+        h = _HANDLE_SUFFIX.sub("", h)
+    return re.sub(r"[._]+", " ", h).strip()
+
+
+def _clean_place(c: str) -> str:
+    """'Available at Selected Cinnabon Stores including Deira City Centre!' -> 'Cinnabon'."""
+    c = re.sub(r"(?i)\b(available|find (it|them|us)|now|only|exclusively|grab (it|one))\s+(at|in|on)\b", " ", c)
+    c = re.sub(r"(?i)\b(selected|all|participating|any)\b", " ", c)
+    c = re.sub(r"(?i)\b(stores?|branches?|outlets?|locations?|including)\b.*$", " ", c)
+    return re.sub(r"\s+", " ", c).strip(" !.-–—:")
+
+
+def restaurant_candidates(signal: Signal) -> list[str]:
+    """Every restaurant hint in the post, best first: tagged restaurant, 📍 line, 'at X', @handles."""
+    cands: list[str] = []
     if signal.restaurant:
-        return signal.restaurant.lstrip("@").replace("_", " ").replace(".", " ").strip()
+        cands.append(_clean_handle(signal.restaurant) if signal.restaurant.startswith("@") else signal.restaurant.strip())
     cap = signal.caption or ""
-    m = re.search(r"📍\s*([^\n,]+?)(?:\s+-\s+|,|\n|$)", cap)   # "📍 Thailand XOCO BAR - Thailand Pavilion"
-    if m and len(m.group(1).strip()) >= 3:
-        return m.group(1).strip()
+    for m in re.finditer(r"📍\s*([^\n,]+?)(?:\s+[-–—]\s+|,|\n|$)", cap):   # "📍 Thailand XOCO BAR - Thailand Pavilion"
+        c = _clean_place(m.group(1))
+        if len(c) >= 3:
+            cands.append(c)
     m = re.search(r"\bat\s+((?:[A-Z0-9][\w'&-]*\s?){1,4})", cap)
     if m:
-        return m.group(1).strip()
-    m = re.search(r"@([\w.]{3,})", cap)
-    if m:
-        return m.group(1).replace("_", " ").replace(".", " ").strip()
-    return None
+        cands.append(m.group(1).strip())
+    for h in re.findall(r"@([\w.]{3,})", cap):
+        c = _clean_handle(h)
+        if len(c) >= 3:
+            cands.append(c)
+    seen: set[str] = set()
+    return [c for c in cands if not (c.lower() in seen or seen.add(c.lower()))][:4]
+
+
+def extract_restaurant(signal: Signal) -> Optional[str]:
+    c = restaurant_candidates(signal)
+    return c[0] if c else None
+
+
+def caption_words(signal: Signal) -> set[str]:
+    text = re.sub(r"@\S+|#\S+|https?://\S+", " ", f"{signal.caption or ''} {signal.text or ''}")
+    return {w for w in _words(text) if len(w) > 2}
 
 
 # ================================================================ RULES
@@ -128,10 +172,10 @@ def rule_resolve(signal: Signal) -> AgentResult:
 
     mcp = careem_mcp.get()
     dish = extract_dish(signal)
-    if not dish:
-        raise FallbackMiss("no dish keyword in the post")
-    rest_q = extract_restaurant(signal)
-    steps = [f"rules: dish={dish!r} restaurant={rest_q!r} (data: {mcp.target})"]
+    cands = restaurant_candidates(signal)
+    if not dish and not cands:
+        raise FallbackMiss("no dish keyword or restaurant in the post")
+    steps = [f"rules: dish={dish!r} restaurants={cands} (data: {mcp.target})"]
 
     def call(name: str, args: dict[str, Any]) -> dict[str, Any]:
         out = mcp.call(name, args, signal_id=signal.id, timeout=RULES_CALL_TIMEOUT_S, retries=1)
@@ -140,15 +184,30 @@ def rule_resolve(signal: Signal) -> AgentResult:
             raise FallbackMiss(f"{name}: {str(out['error'])[:120]}")
         return out
 
+    # 1. The restaurant the post names wins: stay there, even if only a close dish exists.
     main: Optional[tuple[dict, dict]] = None
-    if rest_q:
-        rests = _restaurants(call("food_merchant_search", {"query": rest_q}))
-        rest = next((r for r in rests if _overlap(r["name"], rest_q)), None)
-        if rest:
-            dishes = _dishes(call("food_search_restaurant_items", {"restaurant_id": _int(rest["id"]), "query": dish}))
-            best = _best_item(dishes, dish)
+    named_rest: Optional[dict] = None
+    for cand in cands:
+        rests = _restaurants(call("food_merchant_search", {"query": cand}))
+        named_rest = next((r for r in rests if _same_restaurant(r["name"], cand)), None)
+        if named_rest:
+            break
+    if named_rest:
+        rid = _int(named_rest["id"])
+        if dish:
+            best = _best_item(_dishes(call("food_search_restaurant_items", {"restaurant_id": rid, "query": dish})), dish)
             if best:
-                main = (rest, best)
+                main = (named_rest, best)
+        if main is None:   # no keyword hit: pick the menu item sharing most words with the caption
+            menu_items = _menu_items(call("food_get_restaurant_menu", {"restaurant_id": rid}))
+            words = caption_words(signal)
+            scored = sorted(menu_items, key=lambda i: (len(words & _words(i["name"])), -i["price"]), reverse=True)
+            if scored:
+                main = (named_rest, scored[0])
+                steps.append(f"closest dish on {named_rest['name']}'s menu: {scored[0]['name']}")
+    if not dish:
+        dish = (main[1]["name"] if main else None) or (cands[0] if cands else "")
+    by_dish = _restaurants(call("food_dish_search", {"query": dish})) if dish else []
     by_dish = _restaurants(call("food_dish_search", {"query": dish}))
     if main is None:
         for r in by_dish:
@@ -170,7 +229,7 @@ def rule_resolve(signal: Signal) -> AgentResult:
                                     Item(best["name"], best["id"], best["price"], r["eta"]), best["price"], r["eta"]))
         if len(alts) == 3:
             break
-    exact = all(w in it["name"].lower() for w in dish.split())
+    exact = bool(dish) and all(w in it["name"].lower() for w in dish.split())
     return AgentResult(
         status="found" if exact else "closest", mode="rules", wanted=dish, service="food",
         merchant=Merchant(rest["name"], rest["id"], rest.get("area")),
@@ -201,7 +260,7 @@ def _int(v: Any) -> Any:
 def _item(d: dict[str, Any]) -> Optional[dict[str, Any]]:
     name = _name(d.get("name")) or _name(d.get("item"))
     price = _price(d.get("price"))
-    if d.get("id") is None or not name or price is None or d.get("active") is False:
+    if d.get("id") is None or not name or price is None or price <= 0 or d.get("active") is False:
         return None
     return {"id": str(d["id"]), "name": name, "price": price, "image": d.get("image_url")}
 
@@ -222,12 +281,51 @@ def _restaurants(out: dict[str, Any]) -> list[dict[str, Any]]:
     return res
 
 
+def _menu_items(out: dict[str, Any]) -> list[dict[str, Any]]:
+    """Every orderable item in a food_get_restaurant_menu answer (menu.groups[].items[])."""
+    found: list[dict[str, Any]] = []
+
+    def walk(v: Any) -> None:
+        if isinstance(v, dict):
+            it = _item(v) if ("item" in v or "name" in v) and "price" in v else None
+            if it:
+                found.append(it)
+                return
+            for x in v.values():
+                walk(x)
+        elif isinstance(v, list):
+            for x in v:
+                walk(x)
+    walk((out.get("restaurant") or {}).get("menu") or out.get("menu") or {})
+    return found
+
+
 def _dishes(out: dict[str, Any]) -> list[dict[str, Any]]:
     return [i for i in (_item(x) for x in out.get("dishes") or [] if isinstance(x, dict)) if i]
 
 
 def _words(s: str) -> set[str]:
     return {w for w in re.findall(r"[a-z0-9]+", s.lower()) if w not in _STOP and len(w) > 1}
+
+
+_GENERIC = set("""city centre center mall dubai abu dhabi sharjah uae cafe café restaurant restaurants kitchen store stores
+selected available including branch branches outlet outlets location locations deira marina jbr jlt level food
+bakery house co the and""".split())
+
+
+def _same_restaurant(rest_name: str, cand: str) -> bool:
+    """Distinctive words must match: 'Cake in the City' is NOT 'Cinnabon Stores including Deira City Centre'."""
+    sq_r = "".join(sorted(_words(rest_name) - _GENERIC, key=rest_name.lower().find))
+    sq_c = "".join(_words(cand) - _GENERIC) if len(_words(cand) - _GENERIC) == 1 else ""
+    if len(sq_r) >= 5 and sq_c and (sq_c == sq_r or sq_c.startswith(sq_r)):   # @pizzapiazza -> Pizza Piazza
+        return True
+    rw = _words(rest_name) - _GENERIC
+    cw = _words(cand) - _GENERIC
+    inter = rw & cw
+    if inter and inter == rw:
+        return True                       # every distinctive word of the name is there
+    food = {w for d in DISH_WORDS for w in d.split()}
+    return bool(inter - food) and len(inter) >= max(1, round(0.5 * len(rw)))   # 'shawarma' alone is not a name
 
 
 def _overlap(a: str, b: str) -> bool:
@@ -290,10 +388,9 @@ def scripted_resolve(signal: Signal) -> AgentResult:
 
 
 def _last_resort(signal: Signal, why: str) -> AgentResult:
-    from app.agent import fake_resolve
-
-    res = fake_resolve(signal)
-    res.steps = [f"last resort: built-in scripted answer ({why[:120]})"]
+    """Nothing could answer: say so honestly (no invented dish)."""
+    res = AgentResult(status="none", mode="scripted", wanted=(signal.caption or signal.text or "")[:80],
+                      steps=[f"last resort: nothing could answer ({why[:120]})"])
     _emit(signal.id, "fallback", {"to": "scripted", "reason": why[:300]}, "error")
     return res
 

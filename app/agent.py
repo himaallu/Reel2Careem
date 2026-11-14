@@ -31,7 +31,8 @@ load_dotenv(Path(__file__).resolve().parents[1] / ".env")
 log = logging.getLogger("genie.agent")
 
 MAX_TURNS = 12
-BUDGET_S = float(os.getenv("AGENT_BUDGET_S", "20"))
+BUDGET_S = float(os.getenv("AGENT_BUDGET_S", "25"))
+WRAP_UP_S = 9.0                # this close to the deadline, tell the model to submit what it has
 TOOL_TIMEOUT_S = 6.0
 MAX_TOOL_CHARS = 6000          # per tool result sent to the model
 MAX_IMAGE_BYTES = 3_750_000    # Bedrock image limit
@@ -49,8 +50,10 @@ Find, using the tools:
 1. The exact dish (or its closest match) and the restaurant selling it. If the post names a restaurant, \
 look there first (food_merchant_search, then food_search_restaurant_items or food_get_restaurant_menu); \
 otherwise use food_dish_search.
-2. 2-3 similar dishes at OTHER restaurants (never the same restaurant) for price comparison \
-(food_dish_search results are ideal).
+2. 2-3 alternatives. If the post names several flavours/variants (e.g. "Pecanbon, Pistachio Kunafa or Classic \
+Cinnabons"), pick the one the post is mainly about as the main dish and look up the other NAMED variants at the \
+same restaurant (food_search_restaurant_items) - list those first as alternatives. Otherwise use similar dishes \
+at OTHER restaurants for price comparison (food_dish_search results are ideal).
 3. One cheap add-on (side, drink or dessert) from the chosen restaurant's menu.
 
 Be fast: aim for 2-4 tool turns and call independent tools in parallel in the same turn. \
@@ -286,7 +289,16 @@ def _num(v: Any) -> Any:
         return None
 
 
-def build_result(raw: dict[str, Any], ev: Evidence, *, mode: str, steps: list[str], t0: float) -> AgentResult:
+def _named_in(item_name: str, merchant_name: str, context: str) -> bool:
+    """Is this item a variant the post itself names? ('Pistachio Kunafa Cinnabon' vs a caption saying 'Pistachio Kunafa')."""
+    stop = {"the", "and", "with", "made", "classic", "regular", "small", "large", "medium", "box", "pcs", "piece"}
+    words = {w for w in re.findall(r"[a-z]{4,}", item_name.lower())} - set(re.findall(r"[a-z]+", merchant_name.lower())) - stop
+    ctx = context.lower()
+    return bool(words) and any(w in ctx for w in words)
+
+
+def build_result(raw: dict[str, Any], ev: Evidence, *, mode: str, steps: list[str], t0: float,
+                 context: str = "") -> AgentResult:
     status = raw.get("status")
     if status not in ("found", "closest", "none", "not_buying"):
         raise AgentError(f"bad status {status!r}")
@@ -310,9 +322,10 @@ def build_result(raw: dict[str, Any], ev: Evidence, *, mode: str, steps: list[st
         if not _grounded_item(ev, am, ai, a.get("price_aed"), a.get("eta_min")):
             steps.append(f"dropped ungrounded alternative {ai and ai.get('name')!r}")
             continue
-        if merchant and (str(am.get("id")) == merchant.id or am.get("name") == merchant.name):
+        same = merchant and (str(am.get("id")) == merchant.id or am.get("name") == merchant.name)
+        if same and (ai.get("name") == item.name or not _named_in(ai.get("name") or "", merchant.name, context)):
             steps.append(f"dropped same-restaurant alternative {ai.get('name')!r}")
-            continue  # alternatives are for comparing OTHER restaurants
+            continue  # same restaurant only if the post itself names this variant
         arest = ev.find_restaurant(am)
         alts.append(Alternative(
             merchant=Merchant(am["name"], str(am["id"]) if am.get("id") is not None else None,
@@ -404,6 +417,7 @@ def run_agent(signal: Signal, *, mcp: Any = None, client: Any = None) -> AgentRe
     tools = tool_config(mcp)
     messages: list[dict[str, Any]] = [{"role": "user", "content": _user_content(signal)}]
     ev = Evidence()
+    context = f"{signal.caption or ''} {signal.text or ''}"
     steps: list[str] = []
     nudged = False
     kwargs: dict[str, Any] = {}
@@ -441,19 +455,24 @@ def run_agent(signal: Signal, *, mcp: Any = None, client: Any = None) -> AgentRe
         submit = next((u for u in uses if u["name"] == SUBMIT), None)
         if submit is not None:
             steps.append(f"turn {turn}: submit_result ({ms} ms)")
-            res = build_result(submit.get("input") or {}, ev, mode=mode, steps=steps, t0=t0)
+            res = build_result(submit.get("input") or {}, ev, mode=mode, steps=steps, t0=t0, context=context)
             return res
 
         if stop == "tool_use" and uses:
             steps.append(f"turn {turn}: " + ", ".join(f"{u['name']}({_args_summary(u.get('input'))})" for u in uses)
                          + f" ({ms} ms)")
-            messages.append({"role": "user", "content": _run_tools(uses, signal, mcp, ev, deadline)})
+            content = _run_tools(uses, signal, mcp, ev, deadline)
+            if deadline - time.monotonic() < WRAP_UP_S:
+                content.append({"text": f"Time is almost up: call {SUBMIT} now with the best answer the tool "
+                                        "results above support. Do not call any other tool."})
+                steps.append("wrap-up: told the model to submit with what it has")
+            messages.append({"role": "user", "content": content})
             continue
         if stop in ("end_turn", "max_tokens"):
             raw = _json_from_text(said)
             if raw:
                 steps.append(f"turn {turn}: result as text ({ms} ms)")
-                return build_result(raw, ev, mode=mode, steps=steps, t0=t0)
+                return build_result(raw, ev, mode=mode, steps=steps, t0=t0, context=context)
             if nudged:
                 raise AgentError("model ended without a result after a nudge")
             nudged = True
@@ -524,11 +543,47 @@ def current_mode() -> str:
     return _mode_override or os.getenv("AGENT_MODE", "live").strip().lower()
 
 
+REUSE_HOURS = float(os.getenv("REUSE_SAME_REEL_HOURS", "6"))
+
+
+def previous_live_answer(signal: Signal) -> Optional[AgentResult]:
+    """Same reel (media_id) already answered LIVE recently -> reuse it, so a reel always gets the same answer.
+
+    Only LIVE found/closest answers are reused (a RULES/CACHED one is retried live). Steps say so.
+    """
+    if not signal.media_id:
+        return None
+    try:
+        from datetime import datetime, timedelta, timezone
+
+        from app import db
+        cutoff = (datetime.now(timezone.utc) - timedelta(hours=REUSE_HOURS)).isoformat(timespec="seconds")
+        with db.connect() as c:
+            rows = c.execute(
+                """SELECT m.result_json, m.created_at FROM matches m JOIN signals s ON s.id = m.signal_id
+                   WHERE s.media_id = ? AND s.id != ? AND m.created_at >= ? ORDER BY m.created_at DESC LIMIT 5""",
+                (signal.media_id, signal.id, cutoff)).fetchall()
+        for r in rows:
+            res = AgentResult.from_dict(json.loads(r["result_json"]))
+            if res.mode == "live" and res.status in ("found", "closest"):
+                res.steps = [f"same reel answered LIVE at {r['created_at']} — reused for a consistent answer"]
+                res.latency_ms = 0
+                return res
+    except Exception as e:  # noqa: BLE001 — reuse is an optimisation; never block a live answer
+        log.warning("reuse lookup failed: %s", e)
+    return None
+
+
 def resolve(signal: Signal) -> AgentResult:
     """Never raises. live → fallback ladder (fallbacks.py, P1-5) → fake_resolve as the last resort."""
     mode = current_mode()
     reason = f"AGENT_MODE={mode}"
     if mode == "live":
+        prev = previous_live_answer(signal)
+        if prev is not None:
+            _emit(signal.id, "agent_step", {"turn": 0, "ms": 0, "stop": "reused",
+                                            "tools": ["same reel answered LIVE before — reusing that answer"]})
+            return prev
         try:
             result = run_agent(signal)
             _after(signal, result)
