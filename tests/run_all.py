@@ -21,6 +21,9 @@ def sandbox_up() -> bool:
 
 
 def main() -> int:
+    from sandbox.fetch_spec import fetch
+    if not fetch():                       # Careem's sandbox package is downloaded, not committed
+        return 1
     if not sandbox_up():
         subprocess.run([sys.executable, "-m", "sandbox.ctl", "start"], check=False)
     if not sandbox_up():

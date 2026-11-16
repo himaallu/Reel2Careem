@@ -24,8 +24,9 @@ venv/
 .idea/
 .vscode/
 
-# sandbox runtime
+# sandbox runtime + Careem's sandbox package (downloaded by python -m sandbox.fetch_spec)
 sandbox/.run/
+sandbox/spec/
 
 # raw webhook captures from scripts/webhook_probe.py
 fixtures/webhook_samples/

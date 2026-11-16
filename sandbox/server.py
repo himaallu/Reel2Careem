@@ -431,6 +431,10 @@ def main() -> int:
     logging.basicConfig(level=logging.INFO, stream=sys.stderr, format="%(asctime)s %(message)s")
     for noisy in ("mcp", "uvicorn.access", "httpx"):
         logging.getLogger(noisy).setLevel(logging.WARNING)
+    from sandbox.fetch_spec import fetch
+    if not fetch():
+        print("spec missing: run python -m sandbox.fetch_spec", file=sys.stderr)
+        return 1
     try:
         defs = load_all()
     except SpecError as e:

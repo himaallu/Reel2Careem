@@ -27,7 +27,7 @@ IG_WATCH_MEDIA_IDS=  # comma-separated collab post IDs to watch for comments (au
 # Careem MCP (hackathon production client, public PKCE client — no secret)
 CAREEM_MCP_URL=https://mcp.careemapis.com/mcp
 CAREEM_SANDBOX_MCP_URL=http://127.0.0.1:8787/mcp      # local sandbox (no rides), for cart/checkout tests
-CAREEM_CLIENT_ID=17ccbccd-fb56-43b9-8b2e-198c08a0a207
+CAREEM_CLIENT_ID=<your Careem client id>
 CAREEM_REDIRECT_URI=http://localhost:8080/callback
 CAREEM_REFRESH_TOKEN=   # written by scripts/login_careem.py
 DEMO_LAT=  DEMO_LNG=     # venue coordinates — sent on every Careem call
